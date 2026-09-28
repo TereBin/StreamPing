@@ -1,0 +1,37 @@
+# StreamPing 0.3.1
+
+OBS Studio에서 치지직 LIVE 상태를 확인해 Discord 알림을 보내고 X 작성 화면을
+준비하는 Windows x64 플러그인입니다.
+
+## 설치 및 업데이트
+
+1. OBS Studio를 완전히 종료합니다.
+2. ZIP 파일을 원하는 폴더에 압축 해제합니다.
+3. `install.cmd`를 실행합니다.
+4. 관리자 권한 요청이 표시되면 승인합니다.
+5. OBS를 실행하고 `도구 > StreamPing 설정`을 엽니다.
+
+설치기는 OBS 위치를 자동으로 찾고 기존 DLL을 `streamping.dll.bak`으로 백업합니다.
+포터블 OBS는 명령 프롬프트에서 `install.cmd -ObsPath D:\Apps\obs-studio`처럼
+경로를 지정할 수 있습니다.
+
+## 설정
+
+1. 치지직 채널 URL 또는 32자리 채널 ID를 입력합니다.
+2. Discord의 `Discord 연결`을 누르고 서버와 알림 채널을 승인합니다.
+3. 필요하면 Discord와 X 메시지 템플릿을 수정합니다.
+4. 각 테스트 버튼으로 결과를 확인하고 저장합니다.
+
+사용 가능한 메시지 변수는 `{title}`, `{category}`, `{channel}`, `{url}`입니다.
+X는 내용을 채운 작성 화면만 열며 사용자가 게시 버튼을 누르기 전에는 게시되지 않습니다.
+
+## 제거
+
+OBS를 종료한 뒤 다음 파일을 삭제합니다.
+
+- `obs-plugins/64bit/streamping.dll`
+- `data/obs-plugins/streamping/`
+
+Discord 연결을 먼저 해제하면 StreamPing이 생성한 Webhook도 함께 삭제됩니다.
+
+소스 코드와 이슈: https://github.com/TereBin/StreamPing

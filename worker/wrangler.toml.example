@@ -1,0 +1,11 @@
+name = "streamping-connect"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+DISCORD_CLIENT_ID = "YOUR_DISCORD_APPLICATION_ID"
+PUBLIC_BASE_URL = "https://streamping-connect.YOUR_SUBDOMAIN.workers.dev"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "YOUR_KV_NAMESPACE_ID"

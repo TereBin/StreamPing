@@ -1,0 +1,13 @@
+/build/
+/build_*/
+/dist/
+/artifacts/
+/release-repo/
+/.deps/
+/.vs/
+/.vscode/
+*.user
+*.suo
+/worker/wrangler.toml
+/worker/.wrangler/
+*.bak
