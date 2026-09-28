@@ -12,7 +12,7 @@ StreamPing은 OBS Studio의 방송 시작 이벤트를 감지한 뒤 치지직 �
 - 치지직 LIVE 상태 확인 및 재시도 간격 설정
 - Discord OAuth2 연결과 수동 Webhook 호환
 - Discord 알림 메시지 테스트
-- Discord 사용자, 역할, `@everyone`, `@here` 멘션
+- Discord 명령으로 선택하는 역할 멘션과 `@everyone`, `@here` 지원
 - API 비용 없는 X Web Intent 작성 화면
 - `{title}`, `{category}`, `{channel}`, `{url}` 메시지 변수
 - Discord와 X의 방송별 중복 실행 방지
@@ -51,8 +51,8 @@ cmake --install build --config RelWithDebInfo --prefix dist
 Discord 자동 연결 서비스가 없는 빌드는 수동 Webhook 입력을 계속 사용할 수 있습니다.
 Worker 배포 방법은 [worker/README.md](worker/README.md)를 참고하세요.
 
-Discord 웹훅은 표시 이름을 계정으로 변환하지 않습니다. 메시지 템플릿에서 사용자 멘션은
-`<@사용자ID>`, 역할 멘션은 `<@&역할ID>` 형식을 사용하세요.
+Discord 간편 연결 과정에서 `/streamping-role` 명령으로 역할을 선택하면 방송 알림 앞에
+해당 역할 멘션이 자동으로 추가됩니다. 숫자 역할 ID를 직접 입력할 필요가 없습니다.
 
 ## 테스트
 
@@ -71,5 +71,7 @@ ctest --test-dir build -C RelWithDebInfo --output-on-failure
 
 - Discord Client Secret과 실제 `worker/wrangler.toml`은 커밋하지 않습니다.
 - Webhook URL은 현재 Windows 사용자 범위의 DPAPI 암호문으로 저장합니다.
-- OAuth 연결 세션은 Worker KV에서 10분 후 만료되며 플러그인이 가져간 뒤 삭제됩니다.
+- OAuth 연결 세션과 역할 선택 정보는 Worker KV에서 10분 후 만료되며 플러그인이 가져간
+  뒤 삭제됩니다.
+- Discord 명령 요청은 애플리케이션 Public Key로 서명을 검증합니다.
 - X 기능은 API 토큰을 사용하지 않으며 사용자가 게시 전 내용을 확인합니다.

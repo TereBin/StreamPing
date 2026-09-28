@@ -1,5 +1,6 @@
 #include "notifier.hpp"
 
+#include "discord-message.hpp"
 #include "message-template.hpp"
 #include "settings-dialog.hpp"
 
@@ -154,7 +155,8 @@ void StreamNotifier::sendDiscordNotification(const LiveInfo &live)
   notificationInFlight_ = true;
   ++sendAttempts_;
   const quint64 currentRun = runId_;
-  const QString message = renderMessage(settings_.discordMessageTemplate, live);
+  const QString message = prependDiscordRoleMention(
+      renderMessage(settings_.discordMessageTemplate, live), settings_.discordRoleId);
 
   discord_.send(settings_.discordWebhook, message,
                 [this, currentRun, live](const QString &error)

@@ -1,5 +1,12 @@
 # 변경 이력
 
+## 0.4.0
+
+- Discord `/streamping-role` 명령을 이용한 역할 선택 추가
+- 선택한 역할을 방송 알림 앞에 자동 멘션
+- Discord 사용자 멘션 파싱을 제거하고 역할, `@everyone`, `@here`만 허용
+- Discord Interaction 서명, 서버, 채널, 권한 검증 추가
+
 ## 0.3.2
 
 - Discord 사용자, 역할, `@everyone`, `@here` 멘션 전송 지원

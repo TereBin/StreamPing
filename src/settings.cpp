@@ -93,6 +93,8 @@ PluginSettings SettingsStore::load() const
   if (settings.discordWebhook.isEmpty())
     settings.discordWebhook = object.value("discordWebhook").toString();
   settings.discordChannelName = object.value("discordChannelName").toString();
+  settings.discordRoleId = object.value("discordRoleId").toString();
+  settings.discordRoleName = object.value("discordRoleName").toString();
   settings.discordManagedWebhook = object.value("discordManagedWebhook").toBool(false);
   const QString discordTemplate = object.value("discordMessageTemplate").toString();
   const QString legacyTemplate = object.value("messageTemplate").toString();
@@ -130,6 +132,8 @@ bool SettingsStore::save(const PluginSettings &settings, QString *error) const
   }
   object.insert("discordWebhookProtected", protectedWebhook);
   object.insert("discordChannelName", settings.discordChannelName);
+  object.insert("discordRoleId", settings.discordRoleId);
+  object.insert("discordRoleName", settings.discordRoleName);
   object.insert("discordManagedWebhook", settings.discordManagedWebhook);
   object.insert("discordMessageTemplate", settings.discordMessageTemplate);
   object.insert("xEnabled", settings.xEnabled);

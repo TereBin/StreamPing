@@ -8,6 +8,8 @@
 #include <QMap>
 #include <QUrl>
 
+#include <algorithm>
+
 namespace
 {
 QString responseError(const HttpResponse &response)
@@ -77,22 +79,32 @@ void DiscordConnectionClient::poll(const QString &sessionId, const QString &poll
              {
                if (response.statusCode == 202)
                {
-                 callback(true, {}, {}, {});
+                 callback(true, {}, {}, {}, {}, {});
                  return;
                }
                if (!response.error.isEmpty() || response.statusCode != 200)
                {
-                 callback(false, {}, {}, responseError(response));
+                 callback(false, {}, {}, {}, {}, responseError(response));
                  return;
                }
                const QJsonObject object = QJsonDocument::fromJson(response.body).object();
                const QString webhookUrl = object.value("webhookUrl").toString();
+               const QString roleId = object.value("roleId").toString();
                if (!isValidDiscordWebhook(webhookUrl))
                {
-                 callback(false, {}, {},
+                 callback(false, {}, {}, {}, {},
                           QStringLiteral("연결 서비스가 올바르지 않은 Webhook을 반환했습니다."));
                  return;
                }
-               callback(false, webhookUrl, object.value("channelName").toString(), {});
+               if (roleId.size() < 17 || roleId.size() > 20 ||
+                   std::any_of(roleId.cbegin(), roleId.cend(),
+                               [](QChar character) { return !character.isDigit(); }))
+               {
+                 callback(false, {}, {}, {}, {},
+                          QStringLiteral("연결 서비스가 올바르지 않은 역할을 반환했습니다."));
+                 return;
+               }
+               callback(false, webhookUrl, object.value("channelName").toString(), roleId,
+                        object.value("roleName").toString(), {});
              });
 }

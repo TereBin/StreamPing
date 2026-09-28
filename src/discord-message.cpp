@@ -3,11 +3,19 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
+
+QString prependDiscordRoleMention(const QString &message, const QString &roleId)
+{
+  static const QRegularExpression roleIdPattern(QStringLiteral("^[0-9]{17,20}$"));
+  if (!roleIdPattern.match(roleId).hasMatch())
+    return message;
+  return QStringLiteral("<@&%1>\n%2").arg(roleId, message);
+}
 
 QByteArray buildDiscordMessagePayload(const QString &message)
 {
   QJsonArray parsedMentions;
-  parsedMentions.append(QStringLiteral("users"));
   parsedMentions.append(QStringLiteral("roles"));
   parsedMentions.append(QStringLiteral("everyone"));
 

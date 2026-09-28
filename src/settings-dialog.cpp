@@ -1,5 +1,6 @@
 #include "settings-dialog.hpp"
 
+#include "discord-message.hpp"
 #include "message-template.hpp"
 
 #include <QCheckBox>
@@ -57,7 +58,8 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   discordMessageTemplate_->setPlaceholderText(
       QStringLiteral("사용 가능: {title}, {category}, {channel}, {url}"));
   discordMessageTemplate_->setToolTip(
-      QStringLiteral("Discord 멘션: 사용자 <@사용자 ID>, 역할 <@&역할 ID>, @everyone, @here"));
+      QStringLiteral("연결할 때 선택한 역할이 자동으로 멘션됩니다. @everyone과 @here도 사용할 "
+                     "수 있습니다."));
 
   initialDelay_ = new QSpinBox(this);
   initialDelay_->setRange(0, 30);
@@ -170,9 +172,12 @@ PluginSettings SettingsDialog::formSettings() const
   settings.channelId = normalizeChannelId(channelId_->text());
   settings.discordWebhook = webhook_->text().trimmed();
   if (settings.discordWebhook != originalSettings_.discordWebhook)
+  {
     settings.discordChannelName.clear();
-  if (settings.discordWebhook != originalSettings_.discordWebhook)
+    settings.discordRoleId.clear();
+    settings.discordRoleName.clear();
     settings.discordManagedWebhook = false;
+  }
   settings.discordMessageTemplate = discordMessageTemplate_->toPlainText().trimmed();
   settings.xEnabled = xEnabled_->isChecked();
   settings.xMessageTemplate = xMessageTemplate_->toPlainText().trimmed();
@@ -274,7 +279,7 @@ void SettingsDialog::testDiscordMessage()
       discordMessageTemplate_, QStringLiteral("치지직 정보를 반영해 테스트 메시지를 만드는 중..."),
       [this, webhook](const QString &message, bool usedFallback)
       {
-        discord_.send(webhook, message,
+        discord_.send(webhook, prependDiscordRoleMention(message, originalSettings_.discordRoleId),
                       [this, usedFallback](const QString &sendError)
                       {
                         setBusy(false);
@@ -384,43 +389,45 @@ void SettingsDialog::connectDiscord()
 void SettingsDialog::pollDiscordConnection()
 {
   connectionPollSeconds_ += 2;
-  discordConnection_.poll(connectionSessionId_, connectionPollToken_,
-                          [this](bool pending, const QString &webhookUrl,
-                                 const QString &channelName, const QString &error)
-                          {
-                            if (pending && connectionPollSeconds_ < 300)
-                            {
-                              connectionPollTimer_->start(2000);
-                              return;
-                            }
-                            if (pending)
-                            {
-                              updateDiscordStatus();
-                              status_->setText(
-                                  QStringLiteral("Discord 연결 승인 시간이 만료되었습니다."));
-                              return;
-                            }
-                            if (!error.isEmpty())
-                            {
-                              updateDiscordStatus();
-                              status_->setText(error);
-                              return;
-                            }
+  discordConnection_.poll(
+      connectionSessionId_, connectionPollToken_,
+      [this](bool pending, const QString &webhookUrl, const QString &channelName,
+             const QString &roleId, const QString &roleName, const QString &error)
+      {
+        if (pending && connectionPollSeconds_ < 300)
+        {
+          connectionPollTimer_->start(2000);
+          return;
+        }
+        if (pending)
+        {
+          updateDiscordStatus();
+          status_->setText(QStringLiteral("Discord 연결 승인 시간이 만료되었습니다."));
+          return;
+        }
+        if (!error.isEmpty())
+        {
+          updateDiscordStatus();
+          status_->setText(error);
+          return;
+        }
 
-                            webhook_->setText(webhookUrl);
-                            originalSettings_.discordWebhook = webhookUrl;
-                            originalSettings_.discordChannelName = channelName;
-                            originalSettings_.discordManagedWebhook = true;
-                            QString saveError;
-                            if (!store_.save(originalSettings_, &saveError))
-                            {
-                              updateDiscordStatus();
-                              status_->setText(saveError);
-                              return;
-                            }
-                            updateDiscordStatus();
-                            status_->setText(QStringLiteral("Discord 채널 연결이 완료되었습니다."));
-                          });
+        webhook_->setText(webhookUrl);
+        originalSettings_.discordWebhook = webhookUrl;
+        originalSettings_.discordChannelName = channelName;
+        originalSettings_.discordRoleId = roleId;
+        originalSettings_.discordRoleName = roleName;
+        originalSettings_.discordManagedWebhook = true;
+        QString saveError;
+        if (!store_.save(originalSettings_, &saveError))
+        {
+          updateDiscordStatus();
+          status_->setText(saveError);
+          return;
+        }
+        updateDiscordStatus();
+        status_->setText(QStringLiteral("Discord 채널과 역할 연결이 완료되었습니다."));
+      });
 }
 
 void SettingsDialog::disconnectDiscord()
@@ -435,6 +442,8 @@ void SettingsDialog::disconnectDiscord()
     webhook_->clear();
     originalSettings_.discordWebhook.clear();
     originalSettings_.discordChannelName.clear();
+    originalSettings_.discordRoleId.clear();
+    originalSettings_.discordRoleName.clear();
     QString saveError;
     if (!store_.save(originalSettings_, &saveError))
     {
@@ -459,6 +468,8 @@ void SettingsDialog::disconnectDiscord()
                     webhook_->clear();
                     originalSettings_.discordWebhook.clear();
                     originalSettings_.discordChannelName.clear();
+                    originalSettings_.discordRoleId.clear();
+                    originalSettings_.discordRoleName.clear();
                     originalSettings_.discordManagedWebhook = false;
                     QString saveError;
                     if (!store_.save(originalSettings_, &saveError))
@@ -479,7 +490,11 @@ void SettingsDialog::updateDiscordStatus()
           ? (originalSettings_.discordChannelName.isEmpty()
                  ? (originalSettings_.discordManagedWebhook ? QStringLiteral("연결됨")
                                                             : QStringLiteral("수동 Webhook 연결됨"))
-                 : QStringLiteral("연결됨: %1").arg(originalSettings_.discordChannelName))
+                 : (originalSettings_.discordRoleName.isEmpty()
+                        ? QStringLiteral("연결됨: %1").arg(originalSettings_.discordChannelName)
+                        : QStringLiteral("연결됨: %1 / 역할 @%2")
+                              .arg(originalSettings_.discordChannelName,
+                                   originalSettings_.discordRoleName)))
           : QStringLiteral("연결되지 않음"));
   connectDiscordButton_->setEnabled(!connected);
   disconnectDiscordButton_->setEnabled(connected);

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { webcrypto } from "node:crypto";
 import test from "node:test";
 
 import worker from "../src/index.js";
@@ -36,16 +37,42 @@ function limiter(success = true) {
 }
 
 function environment(overrides = {}) {
+  const sessions = overrides.SESSIONS || new MemoryKv();
+  sessions.entries.set("discord-command:streamping-role:v1", "ready");
   return {
     DISCORD_CLIENT_ID: "1234567890",
     DISCORD_CLIENT_SECRET: "test-only-secret",
     PUBLIC_BASE_URL: "https://worker.example",
-    SESSIONS: new MemoryKv(),
+    DISCORD_PUBLIC_KEY: "00".repeat(32),
+    SESSIONS: sessions,
     SESSION_CREATE_GLOBAL: limiter(),
     SESSION_CREATE_CLIENT: limiter(),
     SESSION_API_CLIENT: limiter(),
     ...overrides,
   };
+}
+
+function hex(value) {
+  return Buffer.from(value).toString("hex");
+}
+
+async function interactionRequest(payload, keyPair) {
+  const body = JSON.stringify(payload);
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = await webcrypto.subtle.sign(
+    "Ed25519",
+    keyPair.privateKey,
+    new TextEncoder().encode(timestamp + body),
+  );
+  return new Request("https://worker.example/v1/discord/interactions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-signature-ed25519": hex(signature),
+      "x-signature-timestamp": timestamp,
+    },
+    body,
+  });
 }
 
 const context = { waitUntil() {} };
@@ -84,12 +111,49 @@ test("session creation stores only hashed poll credentials", async () => {
   assert.equal(response.status, 201);
   assert.match(body.sessionId, /^[A-Za-z0-9_-]{24}$/);
   assert.match(body.pollToken, /^[A-Za-z0-9_-]{43}$/);
+  const authorizationUrl = new URL(body.authorizationUrl);
+  assert.deepEqual(
+    new Set(authorizationUrl.searchParams.get("scope").split(" ")),
+    new Set(["webhook.incoming", "applications.commands"]),
+  );
+  assert.equal(authorizationUrl.searchParams.get("integration_type"), "0");
 
   const stored = JSON.parse(sessions.entries.get(`session:${body.sessionId}`));
   assert.equal(stored.pollToken, undefined);
   assert.match(stored.pollTokenHash, /^[0-9a-f]{64}$/);
   assert.equal(sessions.writes, 2);
 });
+
+test("session creation registers the role command when the cache is empty", { concurrency: false },
+  async () => {
+    const env = environment({ SESSIONS: new MemoryKv() });
+    env.SESSIONS.entries.delete("discord-command:streamping-role:v1");
+    const requests = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url: String(url), options });
+      if (String(url).endsWith("/oauth2/token"))
+        return Response.json({ access_token: "command-token" });
+      return Response.json({ id: "423456789012345678", name: "streamping-role" });
+    };
+
+    try {
+      const response = await worker.fetch(new Request(
+        "https://worker.example/v1/discord/sessions",
+        { method: "POST", headers: { "cf-connecting-ip": "192.0.2.10" } },
+      ), env, context);
+      assert.equal(response.status, 201);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(requests.length, 2);
+    const command = JSON.parse(requests[1].options.body);
+    assert.equal(command.name, "streamping-role");
+    assert.equal(command.options[0].type, 8);
+    assert.equal(command.default_member_permissions, "536870912");
+    assert.equal(env.SESSIONS.entries.get("discord-command:streamping-role:v1"), "ready");
+  });
 
 test("invalid poll tokens are rejected without a KV read", async () => {
   const sessions = new MemoryKv();
@@ -120,4 +184,51 @@ test("completed OAuth states cannot be replayed", async () => {
   const response = await worker.fetch(request, env, context);
   assert.equal(response.status, 400);
   assert.match(await response.text(), /expired/);
+});
+
+test("a signed role command completes the matching connection", async () => {
+  const guildId = "123456789012345678";
+  const channelId = "223456789012345678";
+  const roleId = "323456789012345678";
+  const sessionId = "c".repeat(24);
+  const sessions = new MemoryKv({
+    [`role-target:${guildId}:${channelId}`]: sessionId,
+    [`session:${sessionId}`]: JSON.stringify({
+      status: "awaiting_role",
+      guildId,
+      channelId,
+      webhookUrl: "https://discord.com/api/webhooks/123/token",
+      channelName: `채널 ${channelId}`,
+    }),
+  });
+  const keyPair = await webcrypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
+  const publicKey = await webcrypto.subtle.exportKey("raw", keyPair.publicKey);
+  const env = environment({ SESSIONS: sessions, DISCORD_PUBLIC_KEY: hex(publicKey) });
+  const request = await interactionRequest({
+    type: 2,
+    guild_id: guildId,
+    channel_id: channelId,
+    member: { permissions: "536870912" },
+    data: {
+      name: "streamping-role",
+      options: [{ name: "role", type: 8, value: roleId }],
+      resolved: { roles: { [roleId]: { id: roleId, name: "방송 알림", mentionable: true } } },
+    },
+  }, keyPair);
+
+  const response = await worker.fetch(request, env, context);
+  assert.equal(response.status, 200);
+  const stored = JSON.parse(sessions.entries.get(`session:${sessionId}`));
+  assert.equal(stored.status, "complete");
+  assert.equal(stored.roleId, roleId);
+  assert.equal(stored.roleName, "방송 알림");
+  assert.equal(sessions.entries.has(`role-target:${guildId}:${channelId}`), false);
+});
+
+test("role commands with invalid signatures are rejected", async () => {
+  const response = await worker.fetch(new Request(
+    "https://worker.example/v1/discord/interactions",
+    { method: "POST", body: "{}" },
+  ), environment(), context);
+  assert.equal(response.status, 401);
 });
