@@ -12,6 +12,7 @@ StreamPing은 OBS Studio의 방송 시작 이벤트를 감지한 뒤 치지직 �
 - 치지직 LIVE 상태 확인 및 재시도 간격 설정
 - Discord OAuth2 연결과 수동 Webhook 호환
 - Discord 알림 메시지 테스트
+- Discord 사용자, 역할, `@everyone`, `@here` 멘션
 - API 비용 없는 X Web Intent 작성 화면
 - `{title}`, `{category}`, `{channel}`, `{url}` 메시지 변수
 - Discord와 X의 방송별 중복 실행 방지
@@ -49,6 +50,9 @@ cmake --install build --config RelWithDebInfo --prefix dist
 
 Discord 자동 연결 서비스가 없는 빌드는 수동 Webhook 입력을 계속 사용할 수 있습니다.
 Worker 배포 방법은 [worker/README.md](worker/README.md)를 참고하세요.
+
+Discord 웹훅은 표시 이름을 계정으로 변환하지 않습니다. 메시지 템플릿에서 사용자 멘션은
+`<@사용자ID>`, 역할 멘션은 `<@&역할ID>` 형식을 사용하세요.
 
 ## 테스트
 

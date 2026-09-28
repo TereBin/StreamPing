@@ -1,24 +1,15 @@
 #include "discord-client.hpp"
 
+#include "discord-message.hpp"
 #include "http-client.hpp"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QUrl>
 
 DiscordClient::DiscordClient(QObject *parent) : QObject(parent), http_(new HttpClient(this)) {}
 
 void DiscordClient::send(const QString &webhookUrl, const QString &message, Callback callback)
 {
-  QJsonObject allowedMentions;
-  allowedMentions.insert(QStringLiteral("parse"), QJsonArray());
-
-  QJsonObject payload;
-  payload.insert(QStringLiteral("content"), message.left(2000));
-  payload.insert(QStringLiteral("allowed_mentions"), allowedMentions);
-
-  http_->postJson(QUrl(webhookUrl), QJsonDocument(payload).toJson(QJsonDocument::Compact),
+  http_->postJson(QUrl(webhookUrl), buildDiscordMessagePayload(message),
                   [callback = std::move(callback)](const HttpResponse &response)
                   {
                     if (!response.error.isEmpty() || response.statusCode < 200 ||

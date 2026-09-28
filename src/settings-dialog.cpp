@@ -56,6 +56,8 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   discordMessageTemplate_->setFixedHeight(kMessageEditorHeight);
   discordMessageTemplate_->setPlaceholderText(
       QStringLiteral("사용 가능: {title}, {category}, {channel}, {url}"));
+  discordMessageTemplate_->setToolTip(
+      QStringLiteral("Discord 멘션: 사용자 <@사용자 ID>, 역할 <@&역할 ID>, @everyone, @here"));
 
   initialDelay_ = new QSpinBox(this);
   initialDelay_->setRange(0, 30);

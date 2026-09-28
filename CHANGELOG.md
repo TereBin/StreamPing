@@ -1,5 +1,11 @@
 # 변경 이력
 
+## 0.3.2
+
+- Discord 사용자, 역할, `@everyone`, `@here` 멘션 전송 지원
+- 메시지 편집기에 Discord ID 기반 멘션 형식 안내 추가
+- Discord 전송 payload 단위 테스트 추가
+
 ## 0.3.1
 
 - Discord와 X 활성화 설정을 분리

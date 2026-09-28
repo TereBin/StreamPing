@@ -1,4 +1,4 @@
-# StreamPing 0.3.1
+# StreamPing 0.3.2
 
 OBS Studio에서 치지직 LIVE 상태를 확인해 Discord 알림을 보내고 X 작성 화면을
 준비하는 Windows x64 플러그인입니다.
@@ -23,6 +23,8 @@ OBS Studio에서 치지직 LIVE 상태를 확인해 Discord 알림을 보내고 
 4. 각 테스트 버튼으로 결과를 확인하고 저장합니다.
 
 사용 가능한 메시지 변수는 `{title}`, `{category}`, `{channel}`, `{url}`입니다.
+Discord 멘션은 표시 이름(`@TereBin`) 대신 사용자 `<@사용자ID>`, 역할
+`<@&역할ID>`, 전체 `@everyone` 또는 `@here` 형식을 사용합니다.
 X는 내용을 채운 작성 화면만 열며 사용자가 게시 버튼을 누르기 전에는 게시되지 않습니다.
 
 ## 제거

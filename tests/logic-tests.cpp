@@ -1,8 +1,12 @@
 #include "chzzk-client.hpp"
+#include "discord-message.hpp"
 #include "message-template.hpp"
 #include "settings.hpp"
 #include "x-client.hpp"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QUrlQuery>
 
 namespace
@@ -32,6 +36,27 @@ void validatesDiscordWebhooks()
   check(
       !isValidDiscordWebhook(QStringLiteral("https://discord.com.example/api/webhooks/123/token")));
   check(!isValidDiscordWebhook(QStringLiteral("https://discord.com/channels/123")));
+}
+
+void buildsDiscordMessagePayloads()
+{
+  const QString message = QStringLiteral("<@123456789012345678> 방송 시작!");
+  const QJsonDocument document = QJsonDocument::fromJson(buildDiscordMessagePayload(message));
+  const QJsonObject payload = document.object();
+  const QJsonArray parsedMentions = payload.value(QStringLiteral("allowed_mentions"))
+                                        .toObject()
+                                        .value(QStringLiteral("parse"))
+                                        .toArray();
+
+  check(payload.value(QStringLiteral("content")).toString() == message);
+  check(parsedMentions.contains(QStringLiteral("users")));
+  check(parsedMentions.contains(QStringLiteral("roles")));
+  check(parsedMentions.contains(QStringLiteral("everyone")));
+  check(QJsonDocument::fromJson(buildDiscordMessagePayload(QString(2001, QLatin1Char('x'))))
+            .object()
+            .value(QStringLiteral("content"))
+            .toString()
+            .size() == 2000);
 }
 
 void rendersMessageVariables()
@@ -67,6 +92,7 @@ int main()
 {
   normalizesChannelIds();
   validatesDiscordWebhooks();
+  buildsDiscordMessagePayloads();
   rendersMessageVariables();
   buildsXComposeUrls();
   return failures == 0 ? 0 : 1;

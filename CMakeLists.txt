@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 
-project(streamping VERSION 0.3.1 LANGUAGES CXX)
+project(streamping VERSION 0.3.2 LANGUAGES CXX)
 
 set(STREAMPING_CONNECT_SERVICE_URL "" CACHE STRING
     "Base URL of the StreamPing Discord OAuth service")
@@ -24,6 +24,8 @@ target_sources(
     src/chzzk-client.hpp
     src/discord-client.cpp
     src/discord-client.hpp
+    src/discord-message.cpp
+    src/discord-message.hpp
     src/discord-connection-client.cpp
     src/discord-connection-client.hpp
     src/http-client.cpp
@@ -107,6 +109,8 @@ if(BUILD_TESTING)
   add_executable(
     streamping-tests
     tests/logic-tests.cpp
+    src/discord-message.cpp
+    src/discord-message.hpp
     src/message-template.cpp
     src/message-template.hpp
     src/settings.hpp
