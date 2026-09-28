@@ -15,6 +15,7 @@ struct LiveInfo
   QString category;
   QString channelName;
   QString channelUrl;
+  QString thumbnailUrl;
 };
 
 class ChzzkClient : public QObject

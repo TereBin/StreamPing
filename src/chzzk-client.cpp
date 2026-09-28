@@ -52,6 +52,8 @@ void ChzzkClient::fetchLive(const QString &channelId, Callback callback)
                                  .value(QStringLiteral("channelName"))
                                  .toString();
         live.channelUrl = QStringLiteral("https://chzzk.naver.com/live/%1").arg(channelId);
+        live.thumbnailUrl = content.value(QStringLiteral("liveImageUrl")).toString();
+        live.thumbnailUrl.replace(QStringLiteral("{type}"), QStringLiteral("480"));
 
         live.liveKey = content.value(QStringLiteral("chatChannelId")).toString();
         if (live.liveKey.isEmpty())

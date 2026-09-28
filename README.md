@@ -12,6 +12,7 @@ StreamPing은 OBS Studio의 방송 시작 이벤트를 감지한 뒤 치지직 �
 - 치지직 LIVE 상태 확인 및 재시도 간격 설정
 - Discord OAuth2 연결과 수동 Webhook 호환
 - Discord 알림 메시지 테스트
+- 현재 치지직 LIVE 정보로 생성하는 Discord 임베드
 - 선택적으로 설정하는 Discord 역할 멘션과 `@everyone`, `@here` 지원
 - API 비용 없는 X Web Intent 작성 화면
 - `{role}`, `{title}`, `{category}`, `{channel}`, `{url}` 메시지 변수
@@ -55,6 +56,10 @@ Discord 채널 연결은 역할 선택 없이 바로 완료됩니다. 역할 멘
 `역할 선택`을 누른 뒤 연결된 채널에서 `/streamping-role` 명령을 실행합니다. 메시지의
 `{role}` 태그만 선택한 역할 멘션으로 바뀌며, 태그가 없으면 역할을 멘션하지 않습니다.
 `@everyone`과 `@here`는 역할 선택 여부와 관계없이 메시지에 직접 사용할 수 있습니다.
+
+Discord 알림에는 치지직 LIVE 조회에서 확인한 현재 방송 제목, 채널, 카테고리와 가능한
+경우 현재 LIVE 썸네일을 사용한 임베드가 함께 표시됩니다. 치지직 링크의 자동 미리보기는
+사용하지 않으므로 이전 방송 정보가 캐시되어 나타나는 문제를 피합니다.
 
 ## 테스트
 

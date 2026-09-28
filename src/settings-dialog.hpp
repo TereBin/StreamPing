@@ -39,8 +39,10 @@ private:
   void disconnectDiscord();
   void updateDiscordStatus();
   void setBusy(bool busy, const QString &status = {});
-  void prepareTestMessage(QPlainTextEdit *editor, const QString &preparingStatus,
-                          std::function<void(const QString &message, bool usedFallback)> callback);
+  void prepareTestMessage(
+      QPlainTextEdit *editor, const QString &preparingStatus,
+      std::function<void(const QString &message, const LiveInfo &live, bool usedFallback)>
+          callback);
 
   SettingsStore store_;
   PluginSettings originalSettings_;

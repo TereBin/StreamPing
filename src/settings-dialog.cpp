@@ -284,9 +284,10 @@ void SettingsDialog::testDiscordMessage()
 
   prepareTestMessage(
       discordMessageTemplate_, QStringLiteral("치지직 정보를 반영해 테스트 메시지를 만드는 중..."),
-      [this, webhook](const QString &message, bool usedFallback)
+      [this, webhook](const QString &message, const LiveInfo &live, bool usedFallback)
       {
         discord_.send(webhook, replaceDiscordRoleTag(message, originalSettings_.discordRoleId),
+                      live,
                       [this, usedFallback](const QString &sendError)
                       {
                         setBusy(false);
@@ -308,7 +309,7 @@ void SettingsDialog::testX()
 {
   prepareTestMessage(
       xMessageTemplate_, QStringLiteral("치지직 정보를 반영해 X 작성 화면을 준비하는 중..."),
-      [this](const QString &message, bool usedFallback)
+      [this](const QString &message, const LiveInfo &, bool usedFallback)
       {
         const bool opened = x_.openComposer(message);
         setBusy(false);
@@ -326,7 +327,7 @@ void SettingsDialog::testX()
 
 void SettingsDialog::prepareTestMessage(
     QPlainTextEdit *editor, const QString &preparingStatus,
-    std::function<void(const QString &message, bool usedFallback)> callback)
+    std::function<void(const QString &message, const LiveInfo &live, bool usedFallback)> callback)
 {
   const QString channelId = normalizeChannelId(channelId_->text());
   if (channelId.isEmpty())
@@ -344,15 +345,24 @@ void SettingsDialog::prepareTestMessage(
   }
 
   setBusy(true, preparingStatus);
-  chzzk_.fetchLive(channelId,
-                   [channelId, messageTemplate, callback = std::move(callback)](
-                       const LiveInfo &live, const QString &lookupError) mutable
-                   {
-                     const bool usedFallback = !lookupError.isEmpty() || live.title.isEmpty() ||
-                                               live.category.isEmpty() ||
-                                               live.channelName.isEmpty();
-                     callback(renderTestMessage(messageTemplate, live, channelId), usedFallback);
-                   });
+  chzzk_.fetchLive(
+      channelId,
+      [channelId, messageTemplate,
+       callback = std::move(callback)](const LiveInfo &live, const QString &lookupError) mutable
+      {
+        const bool usedFallback = !lookupError.isEmpty() || live.title.isEmpty() ||
+                                  live.category.isEmpty() || live.channelName.isEmpty();
+        LiveInfo displayLive = live;
+        if (displayLive.title.isEmpty())
+          displayLive.title = QStringLiteral("테스트 방송 제목");
+        if (displayLive.category.isEmpty())
+          displayLive.category = QStringLiteral("테스트 카테고리");
+        if (displayLive.channelName.isEmpty())
+          displayLive.channelName = QStringLiteral("테스트 채널");
+        if (displayLive.channelUrl.isEmpty())
+          displayLive.channelUrl = QStringLiteral("https://chzzk.naver.com/live/%1").arg(channelId);
+        callback(renderMessage(messageTemplate, displayLive), displayLive, usedFallback);
+      });
 }
 
 void SettingsDialog::connectDiscord()

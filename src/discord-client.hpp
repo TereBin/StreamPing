@@ -6,6 +6,7 @@
 #include <functional>
 
 class HttpClient;
+struct LiveInfo;
 
 class DiscordClient : public QObject
 {
@@ -15,7 +16,8 @@ public:
   using Callback = std::function<void(const QString &error)>;
 
   explicit DiscordClient(QObject *parent = nullptr);
-  void send(const QString &webhookUrl, const QString &message, Callback callback);
+  void send(const QString &webhookUrl, const QString &message, const LiveInfo &live,
+            Callback callback);
   void remove(const QString &webhookUrl, Callback callback);
 
 private:

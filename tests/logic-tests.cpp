@@ -40,18 +40,32 @@ void validatesDiscordWebhooks()
 
 void buildsDiscordMessagePayloads()
 {
-  const QString message = QStringLiteral("<@123456789012345678> 방송 시작!");
-  const QJsonDocument document = QJsonDocument::fromJson(buildDiscordMessagePayload(message));
+  LiveInfo live;
+  live.title = QStringLiteral("현재 방송 제목");
+  live.category = QStringLiteral("게임");
+  live.channelName = QStringLiteral("채널 이름");
+  live.channelUrl = QStringLiteral("https://chzzk.naver.com/live/abcdef");
+  live.thumbnailUrl = QStringLiteral("https://example.test/current-thumbnail.jpg");
+  const QString message =
+      QStringLiteral("<@123456789012345678> 방송 시작! %1").arg(live.channelUrl);
+  const QJsonDocument document = QJsonDocument::fromJson(buildDiscordMessagePayload(message, live));
   const QJsonObject payload = document.object();
   const QJsonArray parsedMentions = payload.value(QStringLiteral("allowed_mentions"))
                                         .toObject()
                                         .value(QStringLiteral("parse"))
                                         .toArray();
 
-  check(payload.value(QStringLiteral("content")).toString() == message);
+  check(payload.value(QStringLiteral("content")).toString() ==
+        QStringLiteral("<@123456789012345678> 방송 시작! <%1>").arg(live.channelUrl));
   check(!parsedMentions.contains(QStringLiteral("users")));
   check(parsedMentions.contains(QStringLiteral("roles")));
   check(parsedMentions.contains(QStringLiteral("everyone")));
+  const QJsonObject embed = payload.value(QStringLiteral("embeds")).toArray().first().toObject();
+  check(embed.value(QStringLiteral("title")).toString() == live.title);
+  check(embed.value(QStringLiteral("url")).toString() == live.channelUrl);
+  check(embed.value(QStringLiteral("fields")).toArray().size() == 2);
+  check(embed.value(QStringLiteral("image")).toObject().value(QStringLiteral("url")).toString() ==
+        live.thumbnailUrl);
   check(replaceDiscordRoleTag(QStringLiteral("방송 {role} 시작 {role}"),
                               QStringLiteral("123456789012345678")) ==
         QStringLiteral("방송 <@&123456789012345678> 시작 <@&123456789012345678>"));
@@ -59,7 +73,7 @@ void buildsDiscordMessagePayloads()
         QStringLiteral(" 방송 시작"));
   check(replaceDiscordRoleTag(QStringLiteral("방송 시작"), QStringLiteral("123456789012345678")) ==
         QStringLiteral("방송 시작"));
-  check(QJsonDocument::fromJson(buildDiscordMessagePayload(QString(2001, QLatin1Char('x'))))
+  check(QJsonDocument::fromJson(buildDiscordMessagePayload(QString(2001, QLatin1Char('x')), live))
             .object()
             .value(QStringLiteral("content"))
             .toString()

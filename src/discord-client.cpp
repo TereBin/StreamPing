@@ -1,5 +1,6 @@
 #include "discord-client.hpp"
 
+#include "chzzk-client.hpp"
 #include "discord-message.hpp"
 #include "http-client.hpp"
 
@@ -7,9 +8,10 @@
 
 DiscordClient::DiscordClient(QObject *parent) : QObject(parent), http_(new HttpClient(this)) {}
 
-void DiscordClient::send(const QString &webhookUrl, const QString &message, Callback callback)
+void DiscordClient::send(const QString &webhookUrl, const QString &message, const LiveInfo &live,
+                         Callback callback)
 {
-  http_->postJson(QUrl(webhookUrl), buildDiscordMessagePayload(message),
+  http_->postJson(QUrl(webhookUrl), buildDiscordMessagePayload(message, live),
                   [callback = std::move(callback)](const HttpResponse &response)
                   {
                     if (!response.error.isEmpty() || response.statusCode < 200 ||
