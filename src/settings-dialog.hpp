@@ -33,6 +33,8 @@ private:
   void testDiscordMessage();
   void testX();
   void connectDiscord();
+  void selectDiscordRole();
+  void clearDiscordRole();
   void pollDiscordConnection();
   void disconnectDiscord();
   void updateDiscordStatus();
@@ -60,6 +62,8 @@ private:
   QPushButton *testXButton_;
   QPushButton *connectDiscordButton_;
   QPushButton *disconnectDiscordButton_;
+  QPushButton *selectDiscordRoleButton_;
+  QPushButton *clearDiscordRoleButton_;
   QPushButton *saveButton_;
   QLabel *status_;
   QLabel *discordStatus_;
@@ -67,4 +71,5 @@ private:
   QString connectionSessionId_;
   QString connectionPollToken_;
   int connectionPollSeconds_ = 0;
+  bool selectingDiscordRole_ = false;
 };

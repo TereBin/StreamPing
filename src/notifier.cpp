@@ -155,7 +155,7 @@ void StreamNotifier::sendDiscordNotification(const LiveInfo &live)
   notificationInFlight_ = true;
   ++sendAttempts_;
   const quint64 currentRun = runId_;
-  const QString message = prependDiscordRoleMention(
+  const QString message = replaceDiscordRoleTag(
       renderMessage(settings_.discordMessageTemplate, live), settings_.discordRoleId);
 
   discord_.send(settings_.discordWebhook, message,

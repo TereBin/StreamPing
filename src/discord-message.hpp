@@ -4,4 +4,4 @@
 #include <QString>
 
 QByteArray buildDiscordMessagePayload(const QString &message);
-QString prependDiscordRoleMention(const QString &message, const QString &roleId);
+QString replaceDiscordRoleTag(const QString &message, const QString &roleId);

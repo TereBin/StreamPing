@@ -186,6 +186,77 @@ test("completed OAuth states cannot be replayed", async () => {
   assert.match(await response.text(), /expired/);
 });
 
+test("OAuth completes without waiting for a role", { concurrency: false }, async () => {
+  const state = "d".repeat(43);
+  const sessionId = "e".repeat(24);
+  const sessions = new MemoryKv({
+    [`state:${state}`]: sessionId,
+    [`session:${sessionId}`]: JSON.stringify({
+      status: "pending",
+      state,
+      pollTokenHash: "hash",
+    }),
+  });
+  const env = environment({ SESSIONS: sessions });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    webhook: {
+      id: "123456789012345678",
+      token: "webhook-token-long-enough-for-discord",
+      guild_id: "223456789012345678",
+      channel_id: "323456789012345678",
+    },
+  });
+
+  try {
+    const response = await worker.fetch(new Request(
+      `https://worker.example/v1/discord/callback?state=${state}&code=test-code`,
+      { headers: { "cf-connecting-ip": "192.0.2.10" } },
+    ), env, context);
+    assert.equal(response.status, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const stored = JSON.parse(sessions.entries.get(`session:${sessionId}`));
+  assert.equal(stored.status, "complete");
+  assert.equal(stored.roleId, undefined);
+  assert.equal(sessions.entries.has("role-target:223456789012345678:323456789012345678"), false);
+});
+
+test("role selection starts separately for a connected webhook", { concurrency: false },
+  async () => {
+    const guildId = "123456789012345678";
+    const channelId = "223456789012345678";
+    const webhookUrl =
+      "https://discord.com/api/webhooks/323456789012345678/webhook-token-long-enough";
+    const sessions = new MemoryKv();
+    const env = environment({ SESSIONS: sessions });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => Response.json({ guild_id: guildId, channel_id: channelId });
+
+    let response;
+    try {
+      response = await worker.fetch(new Request(
+        "https://worker.example/v1/discord/role-sessions",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json", "cf-connecting-ip": "192.0.2.10" },
+          body: JSON.stringify({ webhookUrl }),
+        },
+      ), env, context);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    const stored = JSON.parse(sessions.entries.get(`session:${result.sessionId}`));
+    assert.equal(stored.status, "awaiting_role");
+    assert.equal(stored.webhookUrl, webhookUrl);
+    assert.equal(sessions.entries.get(`role-target:${guildId}:${channelId}`), result.sessionId);
+  });
+
 test("a signed role command completes the matching connection", async () => {
   const guildId = "123456789012345678";
   const channelId = "223456789012345678";

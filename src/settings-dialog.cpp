@@ -48,18 +48,22 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   discordStatus_->setWordWrap(true);
   connectDiscordButton_ = new QPushButton(QStringLiteral("Discord 연결"), this);
   disconnectDiscordButton_ = new QPushButton(QStringLiteral("연결 해제"), this);
+  selectDiscordRoleButton_ = new QPushButton(QStringLiteral("역할 선택"), this);
+  clearDiscordRoleButton_ = new QPushButton(QStringLiteral("역할 해제"), this);
   auto *discordConnectionLayout = new QHBoxLayout;
   discordConnectionLayout->addWidget(connectDiscordButton_);
   discordConnectionLayout->addWidget(disconnectDiscordButton_);
+  discordConnectionLayout->addWidget(selectDiscordRoleButton_);
+  discordConnectionLayout->addWidget(clearDiscordRoleButton_);
   discordConnectionLayout->addStretch();
 
   discordMessageTemplate_ = new QPlainTextEdit(originalSettings_.discordMessageTemplate, this);
   discordMessageTemplate_->setFixedHeight(kMessageEditorHeight);
   discordMessageTemplate_->setPlaceholderText(
-      QStringLiteral("사용 가능: {title}, {category}, {channel}, {url}"));
+      QStringLiteral("사용 가능: {role}, {title}, {category}, {channel}, {url}"));
   discordMessageTemplate_->setToolTip(
-      QStringLiteral("연결할 때 선택한 역할이 자동으로 멘션됩니다. @everyone과 @here도 사용할 "
-                     "수 있습니다."));
+      QStringLiteral("{role}은 선택한 역할 멘션으로 바뀝니다. 역할을 선택하지 않으면 빈 "
+                     "문자열이 됩니다. @everyone과 @here도 사용할 수 있습니다."));
 
   initialDelay_ = new QSpinBox(this);
   initialDelay_->setRange(0, 30);
@@ -153,6 +157,9 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   connect(connectDiscordButton_, &QPushButton::clicked, this, &SettingsDialog::connectDiscord);
   connect(disconnectDiscordButton_, &QPushButton::clicked, this,
           &SettingsDialog::disconnectDiscord);
+  connect(selectDiscordRoleButton_, &QPushButton::clicked, this,
+          &SettingsDialog::selectDiscordRole);
+  connect(clearDiscordRoleButton_, &QPushButton::clicked, this, &SettingsDialog::clearDiscordRole);
   connect(connectionPollTimer_, &QTimer::timeout, this, &SettingsDialog::pollDiscordConnection);
   connect(timingToggle, &QToolButton::toggled, this,
           [this, timingToggle, timingPanel](bool expanded)
@@ -279,7 +286,7 @@ void SettingsDialog::testDiscordMessage()
       discordMessageTemplate_, QStringLiteral("치지직 정보를 반영해 테스트 메시지를 만드는 중..."),
       [this, webhook](const QString &message, bool usedFallback)
       {
-        discord_.send(webhook, prependDiscordRoleMention(message, originalSettings_.discordRoleId),
+        discord_.send(webhook, replaceDiscordRoleTag(message, originalSettings_.discordRoleId),
                       [this, usedFallback](const QString &sendError)
                       {
                         setBusy(false);
@@ -361,6 +368,9 @@ void SettingsDialog::connectDiscord()
 
   connectDiscordButton_->setDisabled(true);
   disconnectDiscordButton_->setDisabled(true);
+  selectDiscordRoleButton_->setDisabled(true);
+  clearDiscordRoleButton_->setDisabled(true);
+  selectingDiscordRole_ = false;
   status_->setText(QStringLiteral("Discord 연결을 준비하는 중..."));
   discordConnection_.start(
       [this](const QString &authorizationUrl, const QString &sessionId, const QString &pollToken,
@@ -386,6 +396,55 @@ void SettingsDialog::connectDiscord()
       });
 }
 
+void SettingsDialog::selectDiscordRole()
+{
+  const QString webhook = webhook_->text().trimmed();
+  if (!originalSettings_.discordManagedWebhook || !isValidDiscordWebhook(webhook))
+  {
+    QMessageBox::information(
+        this, QStringLiteral("Discord 역할 선택"),
+        QStringLiteral("역할 선택은 Discord 간편 연결로 만든 Webhook에서 사용할 수 있습니다."));
+    return;
+  }
+
+  setBusy(true, QStringLiteral("Discord 역할 선택을 준비하는 중..."));
+  discordConnection_.startRoleSelection(
+      webhook,
+      [this](const QString &sessionId, const QString &pollToken, const QString &error)
+      {
+        if (!error.isEmpty())
+        {
+          setBusy(false);
+          status_->setText(error);
+          return;
+        }
+        connectionSessionId_ = sessionId;
+        connectionPollToken_ = pollToken;
+        connectionPollSeconds_ = 0;
+        selectingDiscordRole_ = true;
+        status_->setText(
+            QStringLiteral("연결된 Discord 채널에서 /streamping-role 명령으로 역할을 선택해 "
+                           "주세요."));
+        connectionPollTimer_->start(1000);
+      });
+}
+
+void SettingsDialog::clearDiscordRole()
+{
+  connectionPollTimer_->stop();
+  selectingDiscordRole_ = false;
+  originalSettings_.discordRoleId.clear();
+  originalSettings_.discordRoleName.clear();
+  QString saveError;
+  if (!store_.save(originalSettings_, &saveError))
+  {
+    status_->setText(saveError);
+    return;
+  }
+  updateDiscordStatus();
+  status_->setText(QStringLiteral("Discord 역할 멘션을 해제했습니다."));
+}
+
 void SettingsDialog::pollDiscordConnection()
 {
   connectionPollSeconds_ += 2;
@@ -401,22 +460,51 @@ void SettingsDialog::pollDiscordConnection()
         }
         if (pending)
         {
+          if (selectingDiscordRole_)
+          {
+            selectingDiscordRole_ = false;
+            setBusy(false);
+          }
           updateDiscordStatus();
           status_->setText(QStringLiteral("Discord 연결 승인 시간이 만료되었습니다."));
           return;
         }
         if (!error.isEmpty())
         {
+          if (selectingDiscordRole_)
+          {
+            selectingDiscordRole_ = false;
+            setBusy(false);
+          }
           updateDiscordStatus();
           status_->setText(error);
+          return;
+        }
+
+        if (selectingDiscordRole_)
+        {
+          selectingDiscordRole_ = false;
+          setBusy(false);
+          originalSettings_.discordRoleId = roleId;
+          originalSettings_.discordRoleName = roleName;
+          QString saveError;
+          if (!store_.save(originalSettings_, &saveError))
+          {
+            updateDiscordStatus();
+            status_->setText(saveError);
+            return;
+          }
+          updateDiscordStatus();
+          status_->setText(QStringLiteral("Discord 역할 선택이 완료되었습니다. 메시지의 {role} "
+                                          "위치에서 멘션됩니다."));
           return;
         }
 
         webhook_->setText(webhookUrl);
         originalSettings_.discordWebhook = webhookUrl;
         originalSettings_.discordChannelName = channelName;
-        originalSettings_.discordRoleId = roleId;
-        originalSettings_.discordRoleName = roleName;
+        originalSettings_.discordRoleId.clear();
+        originalSettings_.discordRoleName.clear();
         originalSettings_.discordManagedWebhook = true;
         QString saveError;
         if (!store_.save(originalSettings_, &saveError))
@@ -426,7 +514,7 @@ void SettingsDialog::pollDiscordConnection()
           return;
         }
         updateDiscordStatus();
-        status_->setText(QStringLiteral("Discord 채널과 역할 연결이 완료되었습니다."));
+        status_->setText(QStringLiteral("Discord 채널 연결이 완료되었습니다."));
       });
 }
 
@@ -498,6 +586,8 @@ void SettingsDialog::updateDiscordStatus()
           : QStringLiteral("연결되지 않음"));
   connectDiscordButton_->setEnabled(!connected);
   disconnectDiscordButton_->setEnabled(connected);
+  selectDiscordRoleButton_->setEnabled(connected && originalSettings_.discordManagedWebhook);
+  clearDiscordRoleButton_->setEnabled(connected && !originalSettings_.discordRoleId.isEmpty());
   testDiscordButton_->setEnabled(connected);
 }
 
@@ -508,6 +598,8 @@ void SettingsDialog::setBusy(bool busy, const QString &status)
   testXButton_->setDisabled(busy);
   connectDiscordButton_->setDisabled(busy);
   disconnectDiscordButton_->setDisabled(busy);
+  selectDiscordRoleButton_->setDisabled(busy);
+  clearDiscordRoleButton_->setDisabled(busy);
   saveButton_->setDisabled(busy);
   if (!status.isEmpty())
     status_->setText(status);

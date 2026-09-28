@@ -1,8 +1,8 @@
 # StreamPing Discord 연결 서비스
 
-Discord OAuth2의 `webhook.incoming` 승인과 `/streamping-role` 역할 선택 명령을 처리하는
-Cloudflare Worker입니다. Webhook과 선택한 역할은 플러그인이 한 번 가져갈 때까지만 KV에
-저장되며 모든 연결 세션은 10분 후 만료됩니다.
+Discord OAuth2의 `webhook.incoming` 승인과 선택형 `/streamping-role` 역할 설정 명령을
+처리하는 Cloudflare Worker입니다. Webhook과 선택한 역할은 플러그인이 한 번 가져갈
+때까지만 KV에 저장되며 모든 연결 세션은 10분 후 만료됩니다.
 
 ## 배포
 
@@ -26,10 +26,11 @@ npx wrangler deploy
 Secret은 소스나 `wrangler.toml`에 적지 않습니다. 배포가 끝나면 플러그인을 Worker
 주소와 함께 다시 구성하고 빌드합니다.
 
-Worker는 첫 Discord 연결 요청에서 `streamping-role` 명령을 자동 등록합니다. 사용자는
-OAuth에서 서버와 채널을 선택한 뒤 해당 채널에서 `/streamping-role`을 실행하고 Discord의
-역할 선택기를 이용해 알림 역할을 지정합니다. 명령 실행 요청은 Discord 애플리케이션
-Public Key로 검증하며 Webhook 관리 권한이 있는 사용자만 역할을 확정할 수 있습니다.
+Worker는 첫 Discord 연결 요청에서 `streamping-role` 명령을 자동 등록합니다. OAuth에서
+서버와 채널을 선택하면 Webhook 연결은 즉시 완료됩니다. 사용자가 플러그인의 `역할 선택`
+버튼을 누른 경우에만 해당 채널에서 `/streamping-role`을 실행해 알림 역할을 지정합니다.
+명령 실행 요청은 Discord 애플리케이션 Public Key로 검증하며 Webhook 관리 권한이 있는
+사용자만 역할을 확정할 수 있습니다.
 
 Rate Limiting binding은 익명 세션 생성을 전역 분당 30회, 클라이언트당 분당 5회로
 제한합니다. callback과 poll 요청은 클라이언트당 분당 60회로 제한합니다. Cloudflare

@@ -59,6 +59,22 @@ function callbackUrl(env) {
   return `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/v1/discord/callback`;
 }
 
+function parseWebhookUrl(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" ||
+      !["discord.com", "canary.discord.com", "ptb.discord.com"].includes(url.hostname))
+    return null;
+  const match = url.pathname.match(
+    /^\/api(?:\/v\d+)?\/webhooks\/([0-9]{17,20})\/([A-Za-z0-9._-]{20,})\/?$/,
+  );
+  return match ? { id: match[1], token: match[2] } : null;
+}
+
 function clientKey(request) {
   return request.headers.get("cf-connecting-ip") || "unknown";
 }
@@ -275,6 +291,65 @@ async function createSession(request, env) {
   return json({ sessionId, pollToken, authorizationUrl: authorize.toString() }, 201);
 }
 
+async function createRoleSession(request, env) {
+  const rateLimitResponse = await enforceRateLimits([
+    [env.SESSION_CREATE_GLOBAL, "role-all"],
+    [env.SESSION_CREATE_CLIENT, `role:${clientKey(request)}`],
+  ]);
+  if (rateLimitResponse)
+    return rateLimitResponse;
+
+  try {
+    await ensureRoleCommand(env);
+  } catch {
+    return json({ error: "Discord 역할 명령을 준비할 수 없습니다." }, 503);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Discord 연결 정보가 올바르지 않습니다." }, 400);
+  }
+  const webhook = parseWebhookUrl(body?.webhookUrl);
+  if (!webhook)
+    return json({ error: "Discord 연결 정보가 올바르지 않습니다." }, 400);
+
+  let detailsResponse;
+  try {
+    detailsResponse = await fetch(
+      `${DISCORD_API}/webhooks/${webhook.id}/${webhook.token}`,
+      { headers: { "user-agent": "StreamPing/0.4" } },
+    );
+  } catch {
+    return json({ error: "Discord에서 연결 정보를 확인할 수 없습니다." }, 502);
+  }
+  const details = await detailsResponse.json().catch(() => ({}));
+  if (!detailsResponse.ok || !SNOWFLAKE_PATTERN.test(details.guild_id || "") ||
+      !SNOWFLAKE_PATTERN.test(details.channel_id || ""))
+    return json({ error: "Discord Webhook의 서버와 채널을 확인할 수 없습니다." }, 400);
+
+  const sessionId = randomToken(18);
+  const pollToken = randomToken(32);
+  const session = {
+    status: "awaiting_role",
+    pollTokenHash: await sha256(pollToken),
+    webhookUrl: body.webhookUrl,
+    channelName: `채널 ${details.channel_id}`,
+    guildId: details.guild_id,
+    channelId: details.channel_id,
+  };
+  await Promise.all([
+    env.SESSIONS.put(`session:${sessionId}`, JSON.stringify(session), {
+      expirationTtl: SESSION_TTL_SECONDS,
+    }),
+    env.SESSIONS.put(`role-target:${session.guildId}:${session.channelId}`, sessionId, {
+      expirationTtl: SESSION_TTL_SECONDS,
+    }),
+  ]);
+  return json({ sessionId, pollToken }, 201);
+}
+
 async function completeAuthorization(request, env) {
   const url = new URL(request.url);
   const state = url.searchParams.get("state") || "";
@@ -338,35 +413,25 @@ async function completeAuthorization(request, env) {
       ? `Discord 응답에 Webhook이 없습니다. 승인 범위: ${token.scope || "알 수 없음"}`
       : discordError(token, tokenResponse.status);
   } else {
-    session.status = "awaiting_role";
+    session.status = "complete";
     session.webhookUrl = token.webhook.url ||
       `https://discord.com/api/webhooks/${token.webhook.id}/${token.webhook.token}`;
     session.channelName = token.webhook.channel_id
       ? `채널 ${token.webhook.channel_id}`
       : "선택한 채널";
-    session.guildId = token.webhook.guild_id;
-    session.channelId = token.webhook.channel_id;
   }
 
   delete session.state;
-  const writes = [
+  await Promise.all([
     env.SESSIONS.put(`session:${sessionId}`, JSON.stringify(session), {
-      expirationTtl: session.status === "awaiting_role" ? SESSION_TTL_SECONDS : RESULT_TTL_SECONDS,
+      expirationTtl: RESULT_TTL_SECONDS,
     }),
     env.SESSIONS.delete(`state:${state}`),
-  ];
-  if (session.status === "awaiting_role") {
-    writes.push(env.SESSIONS.put(
-      `role-target:${session.guildId}:${session.channelId}`,
-      sessionId,
-      { expirationTtl: SESSION_TTL_SECONDS },
-    ));
-  }
-  await Promise.all(writes);
+  ]);
 
   return text(
-    session.status === "awaiting_role"
-      ? "선택한 Discord 채널에서 /streamping-role 명령을 실행하고 알림 역할을 선택하세요. OBS는 열린 상태로 두세요."
+    session.status === "complete"
+      ? "Discord channel connection is complete. You may close this tab and return to OBS."
       : `${session.error}\n\nReturn to OBS and try again.`,
   );
 }
@@ -414,6 +479,8 @@ export default {
       return json({ status: "ok" });
     if (request.method === "POST" && url.pathname === "/v1/discord/sessions")
       return createSession(request, env);
+    if (request.method === "POST" && url.pathname === "/v1/discord/role-sessions")
+      return createRoleSession(request, env);
     if (request.method === "GET" && url.pathname === "/v1/discord/callback")
       return completeAuthorization(request, env);
     if (request.method === "POST" && url.pathname === "/v1/discord/interactions")

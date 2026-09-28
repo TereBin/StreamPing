@@ -52,10 +52,12 @@ void buildsDiscordMessagePayloads()
   check(!parsedMentions.contains(QStringLiteral("users")));
   check(parsedMentions.contains(QStringLiteral("roles")));
   check(parsedMentions.contains(QStringLiteral("everyone")));
-  check(prependDiscordRoleMention(QStringLiteral("방송 시작"),
-                                  QStringLiteral("123456789012345678")) ==
-        QStringLiteral("<@&123456789012345678>\n방송 시작"));
-  check(prependDiscordRoleMention(QStringLiteral("방송 시작"), QStringLiteral("role-name")) ==
+  check(replaceDiscordRoleTag(QStringLiteral("방송 {role} 시작 {role}"),
+                              QStringLiteral("123456789012345678")) ==
+        QStringLiteral("방송 <@&123456789012345678> 시작 <@&123456789012345678>"));
+  check(replaceDiscordRoleTag(QStringLiteral("{role} 방송 시작"), QStringLiteral("role-name")) ==
+        QStringLiteral(" 방송 시작"));
+  check(replaceDiscordRoleTag(QStringLiteral("방송 시작"), QStringLiteral("123456789012345678")) ==
         QStringLiteral("방송 시작"));
   check(QJsonDocument::fromJson(buildDiscordMessagePayload(QString(2001, QLatin1Char('x'))))
             .object()

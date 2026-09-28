@@ -12,9 +12,9 @@ StreamPing은 OBS Studio의 방송 시작 이벤트를 감지한 뒤 치지직 �
 - 치지직 LIVE 상태 확인 및 재시도 간격 설정
 - Discord OAuth2 연결과 수동 Webhook 호환
 - Discord 알림 메시지 테스트
-- Discord 명령으로 선택하는 역할 멘션과 `@everyone`, `@here` 지원
+- 선택적으로 설정하는 Discord 역할 멘션과 `@everyone`, `@here` 지원
 - API 비용 없는 X Web Intent 작성 화면
-- `{title}`, `{category}`, `{channel}`, `{url}` 메시지 변수
+- `{role}`, `{title}`, `{category}`, `{channel}`, `{url}` 메시지 변수
 - Discord와 X의 방송별 중복 실행 방지
 - Windows DPAPI를 이용한 Discord Webhook 암호화 저장
 - OBS 설치 경로 자동 탐색 및 업데이트
@@ -51,8 +51,10 @@ cmake --install build --config RelWithDebInfo --prefix dist
 Discord 자동 연결 서비스가 없는 빌드는 수동 Webhook 입력을 계속 사용할 수 있습니다.
 Worker 배포 방법은 [worker/README.md](worker/README.md)를 참고하세요.
 
-Discord 간편 연결 과정에서 `/streamping-role` 명령으로 역할을 선택하면 방송 알림 앞에
-해당 역할 멘션이 자동으로 추가됩니다. 숫자 역할 ID를 직접 입력할 필요가 없습니다.
+Discord 채널 연결은 역할 선택 없이 바로 완료됩니다. 역할 멘션이 필요하면 설정 화면의
+`역할 선택`을 누른 뒤 연결된 채널에서 `/streamping-role` 명령을 실행합니다. 메시지의
+`{role}` 태그만 선택한 역할 멘션으로 바뀌며, 태그가 없으면 역할을 멘션하지 않습니다.
+`@everyone`과 `@here`는 역할 선택 여부와 관계없이 메시지에 직접 사용할 수 있습니다.
 
 ## 테스트
 

@@ -68,6 +68,39 @@ void DiscordConnectionClient::start(StartCallback callback)
                   });
 }
 
+void DiscordConnectionClient::startRoleSelection(const QString &webhookUrl,
+                                                 RoleStartCallback callback)
+{
+  if (!isConfigured() || !isValidDiscordWebhook(webhookUrl))
+  {
+    callback({}, {}, QStringLiteral("Discord 연결 정보를 확인할 수 없습니다."));
+    return;
+  }
+
+  QJsonObject request;
+  request.insert(QStringLiteral("webhookUrl"), webhookUrl);
+  http_->postJson(QUrl(serviceUrl_ + QStringLiteral("/v1/discord/role-sessions")),
+                  QJsonDocument(request).toJson(QJsonDocument::Compact),
+                  [callback = std::move(callback)](const HttpResponse &response)
+                  {
+                    if (!response.error.isEmpty() || response.statusCode != 201)
+                    {
+                      callback({}, {}, responseError(response));
+                      return;
+                    }
+                    const QJsonObject object = QJsonDocument::fromJson(response.body).object();
+                    const QString sessionId = object.value(QStringLiteral("sessionId")).toString();
+                    const QString pollToken = object.value(QStringLiteral("pollToken")).toString();
+                    if (sessionId.isEmpty() || pollToken.isEmpty())
+                    {
+                      callback({}, {},
+                               QStringLiteral("연결 서비스의 응답 형식이 올바르지 않습니다."));
+                      return;
+                    }
+                    callback(sessionId, pollToken, {});
+                  });
+}
+
 void DiscordConnectionClient::poll(const QString &sessionId, const QString &pollToken,
                                    PollCallback callback)
 {
@@ -96,9 +129,10 @@ void DiscordConnectionClient::poll(const QString &sessionId, const QString &poll
                           QStringLiteral("연결 서비스가 올바르지 않은 Webhook을 반환했습니다."));
                  return;
                }
-               if (roleId.size() < 17 || roleId.size() > 20 ||
-                   std::any_of(roleId.cbegin(), roleId.cend(),
-                               [](QChar character) { return !character.isDigit(); }))
+               if (!roleId.isEmpty() &&
+                   (roleId.size() < 17 || roleId.size() > 20 ||
+                    std::any_of(roleId.cbegin(), roleId.cend(),
+                                [](QChar character) { return !character.isDigit(); })))
                {
                  callback(false, {}, {}, {}, {},
                           QStringLiteral("연결 서비스가 올바르지 않은 역할을 반환했습니다."));

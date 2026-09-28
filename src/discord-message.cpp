@@ -5,12 +5,13 @@
 #include <QJsonObject>
 #include <QRegularExpression>
 
-QString prependDiscordRoleMention(const QString &message, const QString &roleId)
+QString replaceDiscordRoleTag(const QString &message, const QString &roleId)
 {
   static const QRegularExpression roleIdPattern(QStringLiteral("^[0-9]{17,20}$"));
-  if (!roleIdPattern.match(roleId).hasMatch())
-    return message;
-  return QStringLiteral("<@&%1>\n%2").arg(roleId, message);
+  QString rendered = message;
+  const QString mention =
+      roleIdPattern.match(roleId).hasMatch() ? QStringLiteral("<@&%1>").arg(roleId) : QString();
+  return rendered.replace(QStringLiteral("{role}"), mention);
 }
 
 QByteArray buildDiscordMessagePayload(const QString &message)
