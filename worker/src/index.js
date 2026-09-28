@@ -1,14 +1,33 @@
 const DISCORD_API = "https://discord.com/api/v10";
 const SESSION_TTL_SECONDS = 600;
+const RESULT_TTL_SECONDS = 120;
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{24}$/;
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-function json(body, status = 200) {
+function responseHeaders(extra = {}) {
+  return {
+    "cache-control": "no-store",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+    ...extra,
+  };
+}
+
+function json(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
+    headers: responseHeaders({
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-    },
+      ...headers,
+    }),
+  });
+}
+
+function text(body, status = 200) {
+  return new Response(body, {
+    status,
+    headers: responseHeaders({ "content-type": "text/plain; charset=utf-8" }),
   });
 }
 
@@ -30,6 +49,29 @@ function callbackUrl(env) {
   return `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}/v1/discord/callback`;
 }
 
+function clientKey(request) {
+  return request.headers.get("cf-connecting-ip") || "unknown";
+}
+
+async function enforceRateLimits(checks) {
+  try {
+    const results = await Promise.all(
+      checks.map(([limiter, key]) => {
+        if (!limiter?.limit)
+          throw new Error("Rate limiter binding is missing");
+        return limiter.limit({ key });
+      }),
+    );
+    if (results.some(({ success }) => !success))
+      return json({ error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." }, 429, {
+        "retry-after": "60",
+      });
+  } catch {
+    return json({ error: "연결 보호 서비스를 사용할 수 없습니다." }, 503);
+  }
+  return null;
+}
+
 function discordError(token, status) {
   const detail = token?.error_description || token?.message || token?.error;
   if (typeof detail !== "string" || !detail.trim())
@@ -37,7 +79,14 @@ function discordError(token, status) {
   return `Discord OAuth: ${detail.trim().slice(0, 240)}`;
 }
 
-async function createSession(env) {
+async function createSession(request, env) {
+  const rateLimitResponse = await enforceRateLimits([
+    [env.SESSION_CREATE_GLOBAL, "all"],
+    [env.SESSION_CREATE_CLIENT, clientKey(request)],
+  ]);
+  if (rateLimitResponse)
+    return rateLimitResponse;
+
   const sessionId = randomToken(18);
   const state = randomToken(32);
   const pollToken = randomToken(32);
@@ -69,25 +118,34 @@ async function completeAuthorization(request, env) {
   const state = url.searchParams.get("state") || "";
   const code = url.searchParams.get("code") || "";
   const oauthError = url.searchParams.get("error");
+  if (!TOKEN_PATTERN.test(state) || code.length > 2048)
+    return text("This StreamPing connection request is invalid.", 400);
+
+  const rateLimitResponse = await enforceRateLimits([
+    [env.SESSION_API_CLIENT, `callback:${clientKey(request)}`],
+  ]);
+  if (rateLimitResponse)
+    return rateLimitResponse;
+
   const sessionId = state ? await env.SESSIONS.get(`state:${state}`) : null;
   if (!sessionId)
-    return new Response("This StreamPing connection request has expired.", { status: 400 });
+    return text("This StreamPing connection request has expired.", 400);
 
   const rawSession = await env.SESSIONS.get(`session:${sessionId}`);
   if (!rawSession)
-    return new Response("This StreamPing connection request has expired.", { status: 400 });
+    return text("This StreamPing connection request has expired.", 400);
   const session = JSON.parse(rawSession);
+  if (session.status !== "pending" || session.state !== state)
+    return text("This StreamPing connection request has expired.", 400);
 
   if (oauthError || !code) {
     session.status = "failed";
     session.error = "Discord 연결이 취소되었습니다.";
     await env.SESSIONS.put(`session:${sessionId}`, JSON.stringify(session), {
-      expirationTtl: SESSION_TTL_SECONDS,
+      expirationTtl: RESULT_TTL_SECONDS,
     });
     await env.SESSIONS.delete(`state:${state}`);
-    return new Response("Discord connection was cancelled. You may close this tab.", {
-      headers: { "content-type": "text/plain; charset=utf-8" },
-    });
+    return text("Discord connection was cancelled. You may close this tab.");
   }
 
   const form = new URLSearchParams({
@@ -127,22 +185,30 @@ async function completeAuthorization(request, env) {
   delete session.state;
   await Promise.all([
     env.SESSIONS.put(`session:${sessionId}`, JSON.stringify(session), {
-      expirationTtl: SESSION_TTL_SECONDS,
+      expirationTtl: RESULT_TTL_SECONDS,
     }),
     env.SESSIONS.delete(`state:${state}`),
   ]);
 
-  return new Response(
+  return text(
     session.status === "complete"
       ? "StreamPing is connected to Discord. You may close this tab."
       : `${session.error}\n\nReturn to OBS and try again.`,
-    { headers: { "content-type": "text/plain; charset=utf-8" } },
   );
 }
 
 async function pollSession(request, env, ctx, sessionId) {
   const authorization = request.headers.get("authorization") || "";
   const pollToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!TOKEN_PATTERN.test(pollToken))
+    return json({ error: "연결 요청을 확인할 권한이 없습니다." }, 403);
+
+  const rateLimitResponse = await enforceRateLimits([
+    [env.SESSION_API_CLIENT, `poll:${clientKey(request)}`],
+  ]);
+  if (rateLimitResponse)
+    return rateLimitResponse;
+
   const rawSession = await env.SESSIONS.get(`session:${sessionId}`);
   if (!rawSession)
     return json({ error: "연결 요청이 만료되었습니다." }, 404);
@@ -168,16 +234,19 @@ async function pollSession(request, env, ctx, sessionId) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/health")
+      return json({ status: "ok" });
     if (request.method === "POST" && url.pathname === "/v1/discord/sessions")
-      return createSession(env);
+      return createSession(request, env);
     if (request.method === "GET" && url.pathname === "/v1/discord/callback")
       return completeAuthorization(request, env);
 
-    const match = url.pathname.match(/^\/v1\/discord\/sessions\/([A-Za-z0-9_-]+)$/);
-    if (request.method === "GET" && match)
-      return pollSession(request, env, ctx, match[1]);
-    if (request.method === "GET" && url.pathname === "/health")
-      return json({ status: "ok" });
+    const sessionPathPrefix = "/v1/discord/sessions/";
+    if (request.method === "GET" && url.pathname.startsWith(sessionPathPrefix)) {
+      const sessionId = url.pathname.slice(sessionPathPrefix.length);
+      if (SESSION_ID_PATTERN.test(sessionId))
+        return pollSession(request, env, ctx, sessionId);
+    }
     return json({ error: "Not found" }, 404);
   },
 };

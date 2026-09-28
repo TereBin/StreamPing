@@ -57,6 +57,11 @@ ctest --test-dir build -C RelWithDebInfo --output-on-failure
 ```
 
 `streamping-http-smoke`는 실제 치지직 HTTPS 통신을 확인하는 선택적 실행 파일입니다.
+저장소에 채널 정보를 남기지 않도록 실행할 때 테스트 채널 ID를 전달합니다.
+
+```powershell
+.\build\RelWithDebInfo\streamping-http-smoke.exe <32자리-치지직-채널-ID>
+```
 
 ## 보안
 

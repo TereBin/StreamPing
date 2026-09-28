@@ -10,4 +10,5 @@
 *.suo
 /worker/wrangler.toml
 /worker/.wrangler/
+/worker/node_modules/
 *.bak

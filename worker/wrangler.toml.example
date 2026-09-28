@@ -6,6 +6,30 @@ compatibility_date = "2026-09-01"
 DISCORD_CLIENT_ID = "YOUR_DISCORD_APPLICATION_ID"
 PUBLIC_BASE_URL = "https://streamping-connect.YOUR_SUBDOMAIN.workers.dev"
 
+[[ratelimits]]
+name = "SESSION_CREATE_GLOBAL"
+namespace_id = "YOUR_UNIQUE_INTEGER_1"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
+[[ratelimits]]
+name = "SESSION_CREATE_CLIENT"
+namespace_id = "YOUR_UNIQUE_INTEGER_2"
+
+  [ratelimits.simple]
+  limit = 5
+  period = 60
+
+[[ratelimits]]
+name = "SESSION_API_CLIENT"
+namespace_id = "YOUR_UNIQUE_INTEGER_3"
+
+  [ratelimits.simple]
+  limit = 60
+  period = 60
+
 [[kv_namespaces]]
 binding = "SESSIONS"
 id = "YOUR_KV_NAMESPACE_ID"

@@ -1,0 +1,8 @@
+{
+  "name": "streamping-connect-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
