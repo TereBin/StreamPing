@@ -29,7 +29,7 @@ constexpr int kMessageEditorHeight = 140;
 
 SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
     : QDialog(parent), store_(store), originalSettings_(store_.load()), chzzk_(this),
-      discord_(this), discordConnection_(this)
+      discord_(this), discordConnection_(this), updateChecker_(this)
 {
   setWindowTitle(QStringLiteral("StreamPing 설정"));
   setMinimumWidth(560);
@@ -106,6 +106,20 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   auto *xGroup = new QGroupBox(QStringLiteral("X"), this);
   xGroup->setLayout(xForm);
 
+  automaticUpdateChecks_ = new QCheckBox(QStringLiteral("OBS 시작 시 새 버전 자동 확인"), this);
+  automaticUpdateChecks_->setChecked(originalSettings_.automaticUpdateChecks);
+  checkUpdatesButton_ = new QPushButton(QStringLiteral("지금 확인"), this);
+  auto *updateActions = new QHBoxLayout;
+  updateActions->addWidget(automaticUpdateChecks_);
+  updateActions->addWidget(checkUpdatesButton_);
+  updateActions->addStretch();
+  auto *updateForm = new QFormLayout;
+  updateForm->addRow(QStringLiteral("현재 버전"),
+                     new QLabel(QString::fromUtf8(STREAMPING_VERSION), this));
+  updateForm->addRow(QString(), updateActions);
+  auto *updateGroup = new QGroupBox(QStringLiteral("업데이트"), this);
+  updateGroup->setLayout(updateForm);
+
   auto *timingForm = new QFormLayout;
   timingForm->addRow(QStringLiteral("첫 확인 지연"), initialDelay_);
   timingForm->addRow(QStringLiteral("확인 간격"), pollingInterval_);
@@ -141,6 +155,7 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   layout->addWidget(chzzkGroup);
   layout->addWidget(discordGroup);
   layout->addWidget(xGroup);
+  layout->addWidget(updateGroup);
   layout->addWidget(timingToggle);
   layout->addWidget(timingPanel);
   layout->addLayout(testLayout);
@@ -154,6 +169,7 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   connect(testChzzkButton_, &QPushButton::clicked, this, &SettingsDialog::testChzzk);
   connect(testDiscordButton_, &QPushButton::clicked, this, &SettingsDialog::testDiscordMessage);
   connect(testXButton_, &QPushButton::clicked, this, &SettingsDialog::testX);
+  connect(checkUpdatesButton_, &QPushButton::clicked, this, &SettingsDialog::checkUpdates);
   connect(connectDiscordButton_, &QPushButton::clicked, this, &SettingsDialog::connectDiscord);
   connect(disconnectDiscordButton_, &QPushButton::clicked, this,
           &SettingsDialog::disconnectDiscord);
@@ -191,6 +207,7 @@ PluginSettings SettingsDialog::formSettings() const
   settings.initialDelaySeconds = initialDelay_->value();
   settings.pollingIntervalSeconds = pollingInterval_->value();
   settings.maximumWaitSeconds = maximumWait_->value();
+  settings.automaticUpdateChecks = automaticUpdateChecks_->isChecked();
   return settings;
 }
 
@@ -322,6 +339,52 @@ void SettingsDialog::testX()
             usedFallback ? QStringLiteral("치지직 조회에 실패해 예시 값으로 X 작성 "
                                           "화면을 열었습니다.")
                          : QStringLiteral("현재 치지직 정보를 반영한 X 작성 화면을 열었습니다."));
+      });
+}
+
+void SettingsDialog::checkUpdates()
+{
+  setBusy(true, QStringLiteral("최신 StreamPing 버전을 확인하는 중..."));
+  updateChecker_.check(
+      QString::fromUtf8(STREAMPING_VERSION),
+      [this](const UpdateCheckResult &result)
+      {
+        setBusy(false);
+        if (!result.error.isEmpty())
+        {
+          status_->setText(result.error);
+          return;
+        }
+        if (!result.updateAvailable)
+        {
+          status_->setText(QStringLiteral("현재 최신 버전을 사용 중입니다."));
+          return;
+        }
+
+        QMessageBox messageBox(this);
+        messageBox.setWindowTitle(result.update.urgency == UpdateUrgency::Required
+                                      ? QStringLiteral("StreamPing 필수 업데이트")
+                                      : (result.update.urgency == UpdateUrgency::Recommended
+                                             ? QStringLiteral("StreamPing 권장 업데이트")
+                                             : QStringLiteral("StreamPing 업데이트")));
+        messageBox.setIcon(result.update.urgency == UpdateUrgency::Required
+                               ? QMessageBox::Critical
+                               : (result.update.urgency == UpdateUrgency::Recommended
+                                      ? QMessageBox::Warning
+                                      : QMessageBox::Information));
+        messageBox.setText(result.update.title.isEmpty()
+                               ? QStringLiteral("StreamPing %1 버전이 배포되었습니다.")
+                                     .arg(result.update.latestVersion)
+                               : result.update.title);
+        messageBox.setInformativeText(QStringLiteral("현재 버전: %1\n최신 버전: %2\n\n%3")
+                                          .arg(QString::fromUtf8(STREAMPING_VERSION),
+                                               result.update.latestVersion, result.update.message));
+        auto *downloadButton =
+            messageBox.addButton(QStringLiteral("다운로드 페이지 열기"), QMessageBox::AcceptRole);
+        messageBox.addButton(QStringLiteral("닫기"), QMessageBox::RejectRole);
+        messageBox.exec();
+        if (messageBox.clickedButton() == downloadButton)
+          QDesktopServices::openUrl(QUrl(result.update.downloadUrl));
       });
 }
 
@@ -610,6 +673,7 @@ void SettingsDialog::setBusy(bool busy, const QString &status)
   disconnectDiscordButton_->setDisabled(busy);
   selectDiscordRoleButton_->setDisabled(busy);
   clearDiscordRoleButton_->setDisabled(busy);
+  checkUpdatesButton_->setDisabled(busy);
   saveButton_->setDisabled(busy);
   if (!status.isEmpty())
     status_->setText(status);

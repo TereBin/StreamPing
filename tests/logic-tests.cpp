@@ -2,6 +2,7 @@
 #include "discord-message.hpp"
 #include "message-template.hpp"
 #include "settings.hpp"
+#include "update-checker.hpp"
 #include "x-client.hpp"
 
 #include <QJsonArray>
@@ -107,6 +108,31 @@ void buildsXComposeUrls()
   check(QUrlQuery(url).queryItemValue(QStringLiteral("text")) ==
         QStringLiteral("방송 시작 https://example.test"));
 }
+
+void handlesUpdateVersions()
+{
+  check(compareVersions(QStringLiteral("0.4.2"), QStringLiteral("0.5.0")) < 0);
+  check(compareVersions(QStringLiteral("1.0.0"), QStringLiteral("0.9.9")) > 0);
+  check(compareVersions(QStringLiteral("v0.4.2"), QStringLiteral("0.4.2")) == 0);
+
+  const QByteArray manifest = R"({
+    "schemaVersion": 1,
+    "latestVersion": "0.5.0",
+    "minimumSupportedVersion": "0.4.0",
+    "urgency": "recommended",
+    "title": "새 업데이트",
+    "message": "기능이 개선되었습니다.",
+    "downloadUrl": "https://github.com/TereBin/StreamPing-Release/releases/latest"
+  })";
+  UpdateInfo update;
+  check(parseUpdateManifest(manifest, QStringLiteral("v0.5.0"), &update));
+  check(update.latestVersion == QStringLiteral("0.5.0"));
+  check(update.minimumSupportedVersion == QStringLiteral("0.4.0"));
+  check(update.urgency == UpdateUrgency::Recommended);
+  check(effectiveUpdateUrgency(QStringLiteral("0.3.9"), update) == UpdateUrgency::Required);
+  check(effectiveUpdateUrgency(QStringLiteral("0.4.0"), update) == UpdateUrgency::Recommended);
+  check(!parseUpdateManifest(manifest, QStringLiteral("0.5.1"), &update));
+}
 } // namespace
 
 int main()
@@ -116,5 +142,6 @@ int main()
   buildsDiscordMessagePayloads();
   rendersMessageVariables();
   buildsXComposeUrls();
+  handlesUpdateVersions();
   return failures == 0 ? 0 : 1;
 }

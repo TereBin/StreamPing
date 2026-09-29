@@ -19,6 +19,7 @@ StreamPing은 OBS Studio의 방송 시작 이벤트를 감지한 뒤 치지직 �
 - Discord와 X의 방송별 중복 실행 방지
 - Windows DPAPI를 이용한 Discord Webhook 암호화 저장
 - OBS 설치 경로 자동 탐색 및 업데이트
+- GitHub 최신 릴리스 기반 업데이트 알림
 
 ## 구조
 
@@ -51,6 +52,11 @@ cmake --install build --config RelWithDebInfo --prefix dist
 
 Discord 자동 연결 서비스가 없는 빌드는 수동 Webhook 입력을 계속 사용할 수 있습니다.
 Worker 배포 방법은 [worker/README.md](worker/README.md)를 참고하세요.
+
+업데이트 확인은 GitHub 배포 저장소의 최신 Release와 `update.json`을 함께 사용합니다.
+`minimumSupportedVersion`보다 낮은 버전에는 필수 업데이트를 표시하며, 그 외 업데이트는
+배포자가 지정한 `required`, `recommended`, `optional` 단계에 따라 안내합니다. 원격 정보만으로
+플러그인을 비활성화하거나 자동 설치하지는 않습니다.
 
 Discord 채널 연결은 역할 선택 없이 바로 완료됩니다. 역할 멘션이 필요하면 설정 화면의
 `역할 선택`을 누른 뒤 연결된 채널에서 `/streamping-role` 명령을 실행합니다. 메시지의

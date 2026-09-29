@@ -4,6 +4,7 @@
 #include "discord-client.hpp"
 #include "discord-connection-client.hpp"
 #include "settings.hpp"
+#include "update-checker.hpp"
 #include "x-client.hpp"
 
 #include <QDialog>
@@ -32,6 +33,7 @@ private:
   void testChzzk();
   void testDiscordMessage();
   void testX();
+  void checkUpdates();
   void connectDiscord();
   void selectDiscordRole();
   void clearDiscordRole();
@@ -49,6 +51,7 @@ private:
   ChzzkClient chzzk_;
   DiscordClient discord_;
   DiscordConnectionClient discordConnection_;
+  UpdateChecker updateChecker_;
   XClient x_;
   QCheckBox *discordEnabled_;
   QLineEdit *channelId_;
@@ -56,6 +59,7 @@ private:
   QPlainTextEdit *discordMessageTemplate_;
   QCheckBox *xEnabled_;
   QPlainTextEdit *xMessageTemplate_;
+  QCheckBox *automaticUpdateChecks_;
   QSpinBox *initialDelay_;
   QSpinBox *pollingInterval_;
   QSpinBox *maximumWait_;
@@ -66,6 +70,7 @@ private:
   QPushButton *disconnectDiscordButton_;
   QPushButton *selectDiscordRoleButton_;
   QPushButton *clearDiscordRoleButton_;
+  QPushButton *checkUpdatesButton_;
   QPushButton *saveButton_;
   QLabel *status_;
   QLabel *discordStatus_;

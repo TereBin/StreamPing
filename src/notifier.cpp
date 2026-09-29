@@ -7,6 +7,10 @@
 #include <obs-module.h>
 
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QUrl>
 #include <QWidget>
 
 namespace
@@ -17,10 +21,12 @@ QByteArray logText(const QString &value) { return value.toUtf8(); }
 } // namespace
 
 StreamNotifier::StreamNotifier(QWidget *mainWindow)
-    : QObject(mainWindow), mainWindow_(mainWindow), chzzk_(this), discord_(this)
+    : QObject(mainWindow), mainWindow_(mainWindow), chzzk_(this), discord_(this),
+      updateChecker_(this)
 {
   pollTimer_.setSingleShot(true);
   connect(&pollTimer_, &QTimer::timeout, this, &StreamNotifier::poll);
+  QTimer::singleShot(12000, this, &StreamNotifier::checkForUpdates);
 }
 
 void StreamNotifier::onStreamingStarted()
@@ -56,6 +62,99 @@ void StreamNotifier::showSettings()
 {
   SettingsDialog dialog(store_, mainWindow_);
   dialog.exec();
+}
+
+void StreamNotifier::checkForUpdates()
+{
+  PluginSettings updateSettings = store_.load();
+  if (!updateSettings.automaticUpdateChecks)
+    return;
+
+  const QDateTime lastCheck = QDateTime::fromString(updateSettings.lastUpdateCheckUtc, Qt::ISODate);
+  if (lastCheck.isValid())
+  {
+    const qint64 elapsedSeconds = lastCheck.secsTo(QDateTime::currentDateTimeUtc());
+    if (elapsedSeconds >= 0 && elapsedSeconds < 86400)
+      return;
+  }
+
+  updateChecker_.check(
+      QString::fromUtf8(STREAMPING_VERSION),
+      [this](const UpdateCheckResult &result)
+      {
+        PluginSettings settings = store_.load();
+        const bool requiredUpdate = result.updateAvailable && result.error.isEmpty() &&
+                                    result.update.urgency == UpdateUrgency::Required;
+        settings.lastUpdateCheckUtc =
+            requiredUpdate ? QString() : QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+        QString saveError;
+        if (!store_.save(settings, &saveError))
+          blog(LOG_WARNING, "[StreamPing] Failed to save update check time: %s",
+               logText(saveError).constData());
+
+        if (!result.error.isEmpty())
+        {
+          blog(LOG_WARNING, "[StreamPing] Update check failed: %s",
+               logText(result.error).constData());
+          return;
+        }
+        if (!result.updateAvailable)
+          return;
+        if (result.update.urgency != UpdateUrgency::Required &&
+            settings.skippedUpdateVersion == result.update.latestVersion)
+          return;
+        showUpdateNotice(result.update);
+      });
+}
+
+void StreamNotifier::showUpdateNotice(const UpdateInfo &update)
+{
+  auto *messageBox = new QMessageBox(mainWindow_);
+  messageBox->setAttribute(Qt::WA_DeleteOnClose);
+  messageBox->setWindowTitle(update.urgency == UpdateUrgency::Required
+                                 ? QStringLiteral("StreamPing 필수 업데이트")
+                                 : (update.urgency == UpdateUrgency::Recommended
+                                        ? QStringLiteral("StreamPing 권장 업데이트")
+                                        : QStringLiteral("StreamPing 업데이트")));
+  messageBox->setIcon(update.urgency == UpdateUrgency::Required
+                          ? QMessageBox::Critical
+                          : (update.urgency == UpdateUrgency::Recommended
+                                 ? QMessageBox::Warning
+                                 : QMessageBox::Information));
+  messageBox->setText(
+      update.title.isEmpty()
+          ? QStringLiteral("StreamPing %1 버전이 배포되었습니다.").arg(update.latestVersion)
+          : update.title);
+  messageBox->setInformativeText(
+      QStringLiteral("현재 버전: %1\n최신 버전: %2\n\n%3")
+          .arg(QString::fromUtf8(STREAMPING_VERSION), update.latestVersion, update.message));
+
+  auto *downloadButton =
+      messageBox->addButton(QStringLiteral("다운로드 페이지 열기"), QMessageBox::AcceptRole);
+  messageBox->addButton(QStringLiteral("나중에"), QMessageBox::RejectRole);
+  QPushButton *skipButton = nullptr;
+  if (update.urgency != UpdateUrgency::Required)
+    skipButton = messageBox->addButton(QStringLiteral("이 버전 건너뛰기"), QMessageBox::ActionRole);
+
+  connect(messageBox, &QMessageBox::buttonClicked, this,
+          [this, update, downloadButton, skipButton](QAbstractButton *button)
+          {
+            if (button == downloadButton)
+            {
+              QDesktopServices::openUrl(QUrl(update.downloadUrl));
+              return;
+            }
+            if (skipButton && button == skipButton)
+            {
+              PluginSettings settings = store_.load();
+              settings.skippedUpdateVersion = update.latestVersion;
+              QString error;
+              if (!store_.save(settings, &error))
+                blog(LOG_WARNING, "[StreamPing] Failed to save skipped update: %s",
+                     logText(error).constData());
+            }
+          });
+  messageBox->open();
 }
 
 void StreamNotifier::poll()

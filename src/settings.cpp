@@ -110,6 +110,10 @@ PluginSettings SettingsStore::load() const
       object.value("pollingIntervalSeconds").toInt(settings.pollingIntervalSeconds);
   settings.maximumWaitSeconds =
       object.value("maximumWaitSeconds").toInt(settings.maximumWaitSeconds);
+  settings.automaticUpdateChecks =
+      object.value("automaticUpdateChecks").toBool(settings.automaticUpdateChecks);
+  settings.lastUpdateCheckUtc = object.value("lastUpdateCheckUtc").toString();
+  settings.skippedUpdateVersion = object.value("skippedUpdateVersion").toString();
   settings.lastDiscordNotifiedLiveKey = object.value("lastDiscordNotifiedLiveKey").toString();
   if (settings.lastDiscordNotifiedLiveKey.isEmpty())
     settings.lastDiscordNotifiedLiveKey = object.value("lastNotifiedLiveKey").toString();
@@ -141,6 +145,9 @@ bool SettingsStore::save(const PluginSettings &settings, QString *error) const
   object.insert("initialDelaySeconds", settings.initialDelaySeconds);
   object.insert("pollingIntervalSeconds", settings.pollingIntervalSeconds);
   object.insert("maximumWaitSeconds", settings.maximumWaitSeconds);
+  object.insert("automaticUpdateChecks", settings.automaticUpdateChecks);
+  object.insert("lastUpdateCheckUtc", settings.lastUpdateCheckUtc);
+  object.insert("skippedUpdateVersion", settings.skippedUpdateVersion);
   object.insert("lastDiscordNotifiedLiveKey", settings.lastDiscordNotifiedLiveKey);
   object.insert("lastXPromptedLiveKey", settings.lastXPromptedLiveKey);
 

@@ -19,6 +19,9 @@ struct PluginSettings
   int initialDelaySeconds = 5;
   int pollingIntervalSeconds = 5;
   int maximumWaitSeconds = 120;
+  bool automaticUpdateChecks = true;
+  QString lastUpdateCheckUtc;
+  QString skippedUpdateVersion;
   QString lastDiscordNotifiedLiveKey;
   QString lastXPromptedLiveKey;
 };
