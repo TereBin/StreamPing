@@ -80,8 +80,13 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   maximumWait_->setSuffix(QStringLiteral("초"));
   maximumWait_->setValue(originalSettings_.maximumWaitSeconds);
 
+  testChzzkButton_ = new QPushButton(QStringLiteral("치지직 확인"), this);
+  testDiscordButton_ = new QPushButton(QStringLiteral("알림 메시지 테스트"), this);
+  testXButton_ = new QPushButton(QStringLiteral("X 작성 화면 테스트"), this);
+
   auto *chzzkForm = new QFormLayout;
   chzzkForm->addRow(QStringLiteral("채널"), channelId_);
+  chzzkForm->addRow(QString(), testChzzkButton_);
   auto *chzzkGroup = new QGroupBox(QStringLiteral("치지직"), this);
   chzzkGroup->setLayout(chzzkForm);
 
@@ -91,6 +96,7 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   discordForm->addRow(QString(), discordConnectionLayout);
   discordForm->addRow(QStringLiteral("수동 Webhook (고급)"), webhook_);
   discordForm->addRow(QStringLiteral("메시지"), discordMessageTemplate_);
+  discordForm->addRow(QString(), testDiscordButton_);
   auto *discordGroup = new QGroupBox(QStringLiteral("Discord"), this);
   discordGroup->setLayout(discordForm);
 
@@ -103,6 +109,7 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   auto *xForm = new QFormLayout;
   xForm->addRow(QString(), xEnabled_);
   xForm->addRow(QStringLiteral("메시지"), xMessageTemplate_);
+  xForm->addRow(QString(), testXButton_);
   auto *xGroup = new QGroupBox(QStringLiteral("X"), this);
   xGroup->setLayout(xForm);
 
@@ -134,15 +141,6 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   timingToggle->setArrowType(Qt::RightArrow);
   timingToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-  testChzzkButton_ = new QPushButton(QStringLiteral("치지직 확인"), this);
-  testDiscordButton_ = new QPushButton(QStringLiteral("알림 메시지 테스트"), this);
-  testXButton_ = new QPushButton(QStringLiteral("X 작성 화면 테스트"), this);
-  auto *testLayout = new QHBoxLayout;
-  testLayout->addWidget(testChzzkButton_);
-  testLayout->addWidget(testDiscordButton_);
-  testLayout->addWidget(testXButton_);
-  testLayout->addStretch();
-
   status_ = new QLabel(this);
   status_->setWordWrap(true);
 
@@ -158,7 +156,6 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   layout->addWidget(updateGroup);
   layout->addWidget(timingToggle);
   layout->addWidget(timingPanel);
-  layout->addLayout(testLayout);
   layout->addWidget(status_);
   layout->addWidget(buttons);
 
