@@ -88,3 +88,7 @@ ctest --test-dir build -C RelWithDebInfo --output-on-failure
   뒤 삭제됩니다.
 - Discord 명령 요청은 애플리케이션 Public Key로 서명을 검증합니다.
 - X 기능은 API 토큰을 사용하지 않으며 사용자가 게시 전 내용을 확인합니다.
+
+## 라이선스
+
+StreamPing은 [GNU General Public License v2.0](LICENSE)으로 배포됩니다.

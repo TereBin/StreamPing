@@ -43,8 +43,13 @@ X는 내용을 채운 작성 화면만 열며 사용자가 게시 버튼을 누�
 OBS를 종료한 뒤 다음 파일을 삭제합니다.
 
 - `obs-plugins/64bit/streamping.dll`
+- `obs-plugins/64bit/streamping.dll.bak`
 - `data/obs-plugins/streamping/`
 
 Discord 연결을 먼저 해제하면 StreamPing이 생성한 Webhook도 함께 삭제됩니다.
 
 소스 코드와 이슈: https://github.com/TereBin/StreamPing
+
+## 라이선스
+
+StreamPing은 동봉된 `LICENSE`의 GNU General Public License v2.0으로 배포됩니다.

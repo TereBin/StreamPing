@@ -89,6 +89,7 @@ install(DIRECTORY data/ DESTINATION "data/obs-plugins/streamping")
 install(FILES install.cmd DESTINATION ".")
 install(FILES DISTRIBUTION.md DESTINATION "." RENAME README.md)
 install(FILES CHANGELOG.md DESTINATION ".")
+install(FILES LICENSE DESTINATION ".")
 install(FILES scripts/install-windows.ps1 DESTINATION "scripts")
 
 if(WIN32)
