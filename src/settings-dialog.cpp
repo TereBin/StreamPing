@@ -29,7 +29,6 @@
 #include <QStringList>
 #include <QSysInfo>
 #include <QTimer>
-#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -189,15 +188,8 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   timingForm->addRow(QStringLiteral("첫 확인 지연"), initialDelay_);
   timingForm->addRow(QStringLiteral("확인 간격"), pollingInterval_);
   timingForm->addRow(QStringLiteral("최대 대기"), maximumWait_);
-  auto *timingPanel = new QWidget(this);
-  timingPanel->setLayout(timingForm);
-  timingPanel->setVisible(false);
-  auto *timingToggle = new QToolButton(this);
-  timingToggle->setText(QStringLiteral("LIVE 확인"));
-  timingToggle->setCheckable(true);
-  timingToggle->setChecked(false);
-  timingToggle->setArrowType(Qt::RightArrow);
-  timingToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  auto *timingGroup = new QGroupBox(QStringLiteral("LIVE 확인"), this);
+  timingGroup->setLayout(timingForm);
 
   status_ = new QLabel(this);
   status_->setWordWrap(true);
@@ -214,9 +206,8 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   contentLayout->addWidget(discordGroup);
   contentLayout->addWidget(xGroup);
   contentLayout->addWidget(updateGroup);
+  contentLayout->addWidget(timingGroup);
   contentLayout->addWidget(supportGroup);
-  contentLayout->addWidget(timingToggle);
-  contentLayout->addWidget(timingPanel);
   contentLayout->addWidget(status_);
   contentLayout->addStretch();
 
@@ -257,12 +248,6 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
           &SettingsDialog::selectDiscordRole);
   connect(clearDiscordRoleButton_, &QPushButton::clicked, this, &SettingsDialog::clearDiscordRole);
   connect(connectionPollTimer_, &QTimer::timeout, this, &SettingsDialog::pollDiscordConnection);
-  connect(timingToggle, &QToolButton::toggled, this,
-          [this, timingToggle, timingPanel](bool expanded)
-          {
-            timingToggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-            timingPanel->setVisible(expanded);
-          });
   connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::saveAndAccept);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
