@@ -5,10 +5,25 @@ param(
 
     [string]$LocaleFile,
     [string]$ObsPath,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$WaitForConfirmation
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Wait-ForInstallerConfirmation {
+    if ($WaitForConfirmation) {
+        Write-Host
+        Read-Host '내용을 확인한 뒤 Enter 키를 눌러 설치 창을 닫으세요'
+    }
+}
+
+trap {
+    Write-Host
+    Write-Host "StreamPing 설치 실패: $($_.Exception.Message)" -ForegroundColor Red
+    Wait-ForInstallerConfirmation
+    exit 1
+}
 
 function Test-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -116,6 +131,7 @@ Write-Host "대상 DLL: $targetDll"
 
 if ($DryRun) {
     Write-Host '탐색 테스트 완료. 파일은 변경하지 않았습니다.'
+    Wait-ForInstallerConfirmation
     exit 0
 }
 
@@ -139,6 +155,9 @@ if ($requiresElevation -and -not (Test-Administrator)) {
     )
     if ($localeSource) {
         $arguments += @('-LocaleFile', "`"$localeSource`"")
+    }
+    if ($WaitForConfirmation) {
+        $arguments += '-WaitForConfirmation'
     }
 
     $process = Start-Process powershell.exe -Verb RunAs -ArgumentList $arguments -Wait -PassThru
@@ -166,3 +185,4 @@ if ($sourceHash -ne $targetHash) {
 
 Write-Host 'StreamPing 업데이트가 완료되었습니다.' -ForegroundColor Green
 Write-Host 'OBS Studio를 실행해 주세요.'
+Wait-ForInstallerConfirmation

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 
-project(streamping VERSION 0.6.4 LANGUAGES CXX)
+project(streamping VERSION 0.6.5 LANGUAGES CXX)
 
 set(STREAMPING_CONNECT_SERVICE_URL "" CACHE STRING
     "Base URL of the StreamPing Discord OAuth service")
