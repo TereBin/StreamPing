@@ -9,5 +9,6 @@ if not exist "%localeFile%" set "localeFile=%~dp0data\locale\ko-KR.ini"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-windows.ps1" -PluginDll "%pluginDll%" -LocaleFile "%localeFile%" %*
 set "exitCode=%ERRORLEVEL%"
 echo.
-if not "%exitCode%"=="0" pause
+echo 설치 창을 닫으려면 아무 키나 누르세요.
+pause >nul
 exit /b %exitCode%
