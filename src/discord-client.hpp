@@ -6,6 +6,7 @@
 #include <functional>
 
 class HttpClient;
+struct DiscordEmbedOptions;
 struct LiveInfo;
 
 class DiscordClient : public QObject
@@ -17,7 +18,7 @@ public:
 
   explicit DiscordClient(QObject *parent = nullptr);
   void send(const QString &webhookUrl, const QString &message, const LiveInfo &live,
-            Callback callback);
+            const DiscordEmbedOptions &options, Callback callback);
   void remove(const QString &webhookUrl, Callback callback);
 
 private:

@@ -67,6 +67,18 @@ void buildsDiscordMessagePayloads()
   check(embed.value(QStringLiteral("fields")).toArray().size() == 2);
   check(embed.value(QStringLiteral("image")).toObject().value(QStringLiteral("url")).toString() ==
         live.thumbnailUrl);
+
+  const DiscordEmbedOptions minimalOptions{0x123456, false, false, false};
+  const QJsonObject minimalEmbed =
+      QJsonDocument::fromJson(buildDiscordMessagePayload(message, live, minimalOptions))
+          .object()
+          .value(QStringLiteral("embeds"))
+          .toArray()
+          .first()
+          .toObject();
+  check(minimalEmbed.value(QStringLiteral("color")).toInt() == 0x123456);
+  check(!minimalEmbed.contains(QStringLiteral("fields")));
+  check(!minimalEmbed.contains(QStringLiteral("image")));
   check(replaceDiscordRoleTag(QStringLiteral("방송 {role} 시작 {role}"),
                               QStringLiteral("123456789012345678")) ==
         QStringLiteral("방송 <@&123456789012345678> 시작 <@&123456789012345678>"));

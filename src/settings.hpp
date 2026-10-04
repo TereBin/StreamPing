@@ -2,6 +2,9 @@
 
 #include <QString>
 
+QString defaultDiscordMessageTemplate();
+QString defaultXMessageTemplate();
+
 struct PluginSettings
 {
   bool discordEnabled = true;
@@ -11,11 +14,13 @@ struct PluginSettings
   QString discordRoleId;
   QString discordRoleName;
   bool discordManagedWebhook = false;
-  QString discordMessageTemplate =
-      QString::fromUtf8("🔴 {channel} 방송 시작!\n\n{title}\n카테고리: {category}\n{url}");
+  QString discordMessageTemplate = defaultDiscordMessageTemplate();
+  int discordEmbedColor = 0x00ffa3;
+  bool discordEmbedShowChannel = true;
+  bool discordEmbedShowCategory = true;
+  bool discordEmbedShowThumbnail = true;
   bool xEnabled = true;
-  QString xMessageTemplate =
-      QString::fromUtf8("🔴 {channel} 방송 시작!\n\n{title}\n{category}\n{url}");
+  QString xMessageTemplate = defaultXMessageTemplate();
   int initialDelaySeconds = 5;
   int pollingIntervalSeconds = 5;
   int maximumWaitSeconds = 120;

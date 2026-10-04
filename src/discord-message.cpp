@@ -36,7 +36,8 @@ QString replaceDiscordRoleTag(const QString &message, const QString &roleId)
   return rendered.replace(QStringLiteral("{role}"), mention);
 }
 
-QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &live)
+QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &live,
+                                      const DiscordEmbedOptions &options)
 {
   QJsonArray parsedMentions;
   parsedMentions.append(QStringLiteral("roles"));
@@ -50,10 +51,10 @@ QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &li
                (live.title.isEmpty() ? QStringLiteral("방송 시작") : live.title).left(256));
   if (isHttpsUrl(live.channelUrl))
     embed.insert(QStringLiteral("url"), live.channelUrl);
-  embed.insert(QStringLiteral("color"), 0x00ffa3);
+  embed.insert(QStringLiteral("color"), options.color & 0xffffff);
 
   QJsonArray fields;
-  if (!live.channelName.isEmpty())
+  if (options.showChannel && !live.channelName.isEmpty())
   {
     QJsonObject channelField;
     channelField.insert(QStringLiteral("name"), QStringLiteral("채널"));
@@ -61,7 +62,7 @@ QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &li
     channelField.insert(QStringLiteral("inline"), true);
     fields.append(channelField);
   }
-  if (!live.category.isEmpty())
+  if (options.showCategory && !live.category.isEmpty())
   {
     QJsonObject categoryField;
     categoryField.insert(QStringLiteral("name"), QStringLiteral("카테고리"));
@@ -71,7 +72,7 @@ QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &li
   }
   if (!fields.isEmpty())
     embed.insert(QStringLiteral("fields"), fields);
-  if (isHttpsUrl(live.thumbnailUrl))
+  if (options.showThumbnail && isHttpsUrl(live.thumbnailUrl))
   {
     QJsonObject image;
     image.insert(QStringLiteral("url"), live.thumbnailUrl);

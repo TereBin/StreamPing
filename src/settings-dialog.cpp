@@ -3,18 +3,29 @@
 #include "discord-message.hpp"
 #include "message-template.hpp"
 
+#include <obs-module.h>
+
 #include <QCheckBox>
+#include <QClipboard>
+#include <QColorDialog>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QGuiApplication>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStringList>
+#include <QSysInfo>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
@@ -25,7 +36,9 @@
 namespace
 {
 constexpr int kMessageEditorHeight = 140;
-}
+const QUrl kIssuesUrl(QStringLiteral("https://github.com/TereBin/StreamPing/issues"));
+const QUrl kDiscordSupportUrl(QStringLiteral("https://discordapp.com/users/537256771501424640"));
+} // namespace
 
 SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
     : QDialog(parent), store_(store), originalSettings_(store_.load()), chzzk_(this),
@@ -64,6 +77,16 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   discordMessageTemplate_->setToolTip(
       QStringLiteral("{role}은 선택한 역할 멘션으로 바뀝니다. 역할을 선택하지 않으면 빈 "
                      "문자열이 됩니다. @everyone과 @here도 사용할 수 있습니다."));
+  discordEmbedColor_ = originalSettings_.discordEmbedColor;
+  discordEmbedColorButton_ = new QPushButton(this);
+  discordEmbedColorButton_->setToolTip(QStringLiteral("Discord 임베드 왼쪽 강조 색상"));
+  discordEmbedShowChannel_ = new QCheckBox(QStringLiteral("채널"), this);
+  discordEmbedShowChannel_->setChecked(originalSettings_.discordEmbedShowChannel);
+  discordEmbedShowCategory_ = new QCheckBox(QStringLiteral("카테고리"), this);
+  discordEmbedShowCategory_->setChecked(originalSettings_.discordEmbedShowCategory);
+  discordEmbedShowThumbnail_ = new QCheckBox(QStringLiteral("썸네일"), this);
+  discordEmbedShowThumbnail_->setChecked(originalSettings_.discordEmbedShowThumbnail);
+  updateDiscordEmbedColorButton();
 
   initialDelay_ = new QSpinBox(this);
   initialDelay_->setRange(0, 30);
@@ -83,6 +106,11 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   testChzzkButton_ = new QPushButton(QStringLiteral("치지직 확인"), this);
   testDiscordButton_ = new QPushButton(QStringLiteral("알림 메시지 테스트"), this);
   testXButton_ = new QPushButton(QStringLiteral("X 작성 화면 테스트"), this);
+  previewDiscordButton_ = new QPushButton(QStringLiteral("미리보기"), this);
+  previewXButton_ = new QPushButton(QStringLiteral("미리보기"), this);
+  resetDiscordTemplateButton_ = new QPushButton(QStringLiteral("메시지 초기화"), this);
+  resetXTemplateButton_ = new QPushButton(QStringLiteral("메시지 초기화"), this);
+  copyDiagnosticsButton_ = new QPushButton(QStringLiteral("진단 정보 복사"), this);
 
   auto *chzzkForm = new QFormLayout;
   chzzkForm->addRow(QStringLiteral("채널"), channelId_);
@@ -96,7 +124,19 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   discordForm->addRow(QString(), discordConnectionLayout);
   discordForm->addRow(QStringLiteral("수동 Webhook (고급)"), webhook_);
   discordForm->addRow(QStringLiteral("메시지"), discordMessageTemplate_);
-  discordForm->addRow(QString(), testDiscordButton_);
+  auto *embedOptions = new QHBoxLayout;
+  embedOptions->addWidget(discordEmbedColorButton_);
+  embedOptions->addWidget(discordEmbedShowChannel_);
+  embedOptions->addWidget(discordEmbedShowCategory_);
+  embedOptions->addWidget(discordEmbedShowThumbnail_);
+  embedOptions->addStretch();
+  discordForm->addRow(QStringLiteral("임베드"), embedOptions);
+  auto *discordActions = new QHBoxLayout;
+  discordActions->addWidget(previewDiscordButton_);
+  discordActions->addWidget(testDiscordButton_);
+  discordActions->addWidget(resetDiscordTemplateButton_);
+  discordActions->addStretch();
+  discordForm->addRow(QString(), discordActions);
   auto *discordGroup = new QGroupBox(QStringLiteral("Discord"), this);
   discordGroup->setLayout(discordForm);
 
@@ -109,7 +149,12 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   auto *xForm = new QFormLayout;
   xForm->addRow(QString(), xEnabled_);
   xForm->addRow(QStringLiteral("메시지"), xMessageTemplate_);
-  xForm->addRow(QString(), testXButton_);
+  auto *xActions = new QHBoxLayout;
+  xActions->addWidget(previewXButton_);
+  xActions->addWidget(testXButton_);
+  xActions->addWidget(resetXTemplateButton_);
+  xActions->addStretch();
+  xForm->addRow(QString(), xActions);
   auto *xGroup = new QGroupBox(QStringLiteral("X"), this);
   xGroup->setLayout(xForm);
 
@@ -126,6 +171,16 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   updateForm->addRow(QString(), updateActions);
   auto *updateGroup = new QGroupBox(QStringLiteral("업데이트"), this);
   updateGroup->setLayout(updateForm);
+
+  auto *issuesButton = new QPushButton(QStringLiteral("GitHub Issues"), this);
+  auto *discordSupportButton = new QPushButton(QStringLiteral("Discord 문의"), this);
+  auto *supportActions = new QHBoxLayout;
+  supportActions->addWidget(copyDiagnosticsButton_);
+  supportActions->addWidget(issuesButton);
+  supportActions->addWidget(discordSupportButton);
+  supportActions->addStretch();
+  auto *supportGroup = new QGroupBox(QStringLiteral("지원"), this);
+  supportGroup->setLayout(supportActions);
 
   auto *timingForm = new QFormLayout;
   timingForm->addRow(QStringLiteral("첫 확인 지연"), initialDelay_);
@@ -154,6 +209,7 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   layout->addWidget(discordGroup);
   layout->addWidget(xGroup);
   layout->addWidget(updateGroup);
+  layout->addWidget(supportGroup);
   layout->addWidget(timingToggle);
   layout->addWidget(timingPanel);
   layout->addWidget(status_);
@@ -166,6 +222,18 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   connect(testChzzkButton_, &QPushButton::clicked, this, &SettingsDialog::testChzzk);
   connect(testDiscordButton_, &QPushButton::clicked, this, &SettingsDialog::testDiscordMessage);
   connect(testXButton_, &QPushButton::clicked, this, &SettingsDialog::testX);
+  connect(previewDiscordButton_, &QPushButton::clicked, this,
+          &SettingsDialog::previewDiscordMessage);
+  connect(previewXButton_, &QPushButton::clicked, this, &SettingsDialog::previewXMessage);
+  connect(resetDiscordTemplateButton_, &QPushButton::clicked, this,
+          &SettingsDialog::resetDiscordTemplate);
+  connect(resetXTemplateButton_, &QPushButton::clicked, this, &SettingsDialog::resetXTemplate);
+  connect(discordEmbedColorButton_, &QPushButton::clicked, this,
+          &SettingsDialog::chooseDiscordEmbedColor);
+  connect(copyDiagnosticsButton_, &QPushButton::clicked, this, &SettingsDialog::copyDiagnostics);
+  connect(issuesButton, &QPushButton::clicked, this, [] { QDesktopServices::openUrl(kIssuesUrl); });
+  connect(discordSupportButton, &QPushButton::clicked, this,
+          [] { QDesktopServices::openUrl(kDiscordSupportUrl); });
   connect(checkUpdatesButton_, &QPushButton::clicked, this, &SettingsDialog::checkUpdates);
   connect(connectDiscordButton_, &QPushButton::clicked, this, &SettingsDialog::connectDiscord);
   connect(disconnectDiscordButton_, &QPushButton::clicked, this,
@@ -199,6 +267,10 @@ PluginSettings SettingsDialog::formSettings() const
     settings.discordManagedWebhook = false;
   }
   settings.discordMessageTemplate = discordMessageTemplate_->toPlainText().trimmed();
+  settings.discordEmbedColor = discordEmbedColor_;
+  settings.discordEmbedShowChannel = discordEmbedShowChannel_->isChecked();
+  settings.discordEmbedShowCategory = discordEmbedShowCategory_->isChecked();
+  settings.discordEmbedShowThumbnail = discordEmbedShowThumbnail_->isChecked();
   settings.xEnabled = xEnabled_->isChecked();
   settings.xMessageTemplate = xMessageTemplate_->toPlainText().trimmed();
   settings.initialDelaySeconds = initialDelay_->value();
@@ -300,8 +372,12 @@ void SettingsDialog::testDiscordMessage()
       discordMessageTemplate_, QStringLiteral("치지직 정보를 반영해 테스트 메시지를 만드는 중..."),
       [this, webhook](const QString &message, const LiveInfo &live, bool usedFallback)
       {
+        const PluginSettings settings = formSettings();
+        const DiscordEmbedOptions embedOptions{
+            settings.discordEmbedColor, settings.discordEmbedShowChannel,
+            settings.discordEmbedShowCategory, settings.discordEmbedShowThumbnail};
         discord_.send(webhook, replaceDiscordRoleTag(message, originalSettings_.discordRoleId),
-                      live,
+                      live, embedOptions,
                       [this, usedFallback](const QString &sendError)
                       {
                         setBusy(false);
@@ -316,6 +392,50 @@ void SettingsDialog::testDiscordMessage()
                                          : QStringLiteral("현재 치지직 정보를 반영한 알림 "
                                                           "메시지를 전송했습니다."));
                       });
+      });
+}
+
+void SettingsDialog::previewDiscordMessage()
+{
+  prepareTestMessage(
+      discordMessageTemplate_, QStringLiteral("Discord 미리보기를 준비하는 중..."),
+      [this](const QString &message, const LiveInfo &live, bool usedFallback)
+      {
+        const PluginSettings settings = formSettings();
+        const DiscordEmbedOptions options{
+            settings.discordEmbedColor, settings.discordEmbedShowChannel,
+            settings.discordEmbedShowCategory, settings.discordEmbedShowThumbnail};
+        const QJsonObject payload =
+            QJsonDocument::fromJson(
+                buildDiscordMessagePayload(
+                    replaceDiscordRoleTag(message, originalSettings_.discordRoleId), live, options))
+                .object();
+        const QJsonObject embed =
+            payload.value(QStringLiteral("embeds")).toArray().first().toObject();
+        QStringList lines;
+        lines << QStringLiteral("메시지") << QStringLiteral("------")
+              << payload.value(QStringLiteral("content")).toString() << QString()
+              << QStringLiteral("임베드") << QStringLiteral("------")
+              << QStringLiteral("제목: %1").arg(embed.value(QStringLiteral("title")).toString())
+              << QStringLiteral("색상: #%1")
+                     .arg(options.color & 0xffffff, 6, 16, QLatin1Char('0'))
+                     .toUpper();
+        const QJsonArray fields = embed.value(QStringLiteral("fields")).toArray();
+        for (const QJsonValue &value : fields)
+        {
+          const QJsonObject field = value.toObject();
+          lines << QStringLiteral("%1: %2").arg(field.value(QStringLiteral("name")).toString(),
+                                                field.value(QStringLiteral("value")).toString());
+        }
+        lines << QStringLiteral("썸네일: %1")
+                     .arg(embed.contains(QStringLiteral("image")) ? QStringLiteral("표시")
+                                                                  : QStringLiteral("숨김"));
+        if (usedFallback)
+          lines << QString()
+                << QStringLiteral(
+                       "치지직 조회에 실패하거나 방송 정보가 없어 예시 값을 사용했습니다.");
+        setBusy(false);
+        showTextPreview(QStringLiteral("Discord 메시지 미리보기"), lines.join(QLatin1Char('\n')));
       });
 }
 
@@ -337,6 +457,94 @@ void SettingsDialog::testX()
                                           "화면을 열었습니다.")
                          : QStringLiteral("현재 치지직 정보를 반영한 X 작성 화면을 열었습니다."));
       });
+}
+
+void SettingsDialog::previewXMessage()
+{
+  prepareTestMessage(
+      xMessageTemplate_, QStringLiteral("X 미리보기를 준비하는 중..."),
+      [this](const QString &message, const LiveInfo &, bool usedFallback)
+      {
+        QString preview = message;
+        if (usedFallback)
+          preview += QStringLiteral(
+              "\n\n---\n치지직 조회에 실패하거나 방송 정보가 없어 예시 값을 사용했습니다.");
+        setBusy(false);
+        showTextPreview(QStringLiteral("X 메시지 미리보기"), preview);
+      });
+}
+
+void SettingsDialog::resetDiscordTemplate()
+{
+  if (QMessageBox::question(this, QStringLiteral("메시지 초기화"),
+                            QStringLiteral("Discord 메시지를 기본값으로 되돌릴까요?")) ==
+      QMessageBox::Yes)
+    discordMessageTemplate_->setPlainText(defaultDiscordMessageTemplate());
+}
+
+void SettingsDialog::resetXTemplate()
+{
+  if (QMessageBox::question(this, QStringLiteral("메시지 초기화"),
+                            QStringLiteral("X 메시지를 기본값으로 되돌릴까요?")) ==
+      QMessageBox::Yes)
+    xMessageTemplate_->setPlainText(defaultXMessageTemplate());
+}
+
+void SettingsDialog::chooseDiscordEmbedColor()
+{
+  const QColor color = QColorDialog::getColor(QColor::fromRgb(discordEmbedColor_), this,
+                                              QStringLiteral("Discord 임베드 색상"));
+  if (!color.isValid())
+    return;
+  discordEmbedColor_ = color.rgb() & 0xffffff;
+  updateDiscordEmbedColorButton();
+}
+
+void SettingsDialog::copyDiagnostics()
+{
+  const PluginSettings settings = formSettings();
+  const QString recentStatus = status_->text().trimmed();
+  const auto enabledText = [](bool enabled)
+  { return enabled ? QStringLiteral("켜짐") : QStringLiteral("꺼짐"); };
+  const auto visibleText = [](bool visible)
+  { return visible ? QStringLiteral("표시") : QStringLiteral("숨김"); };
+  const QString color = QStringLiteral("#%1")
+                            .arg(settings.discordEmbedColor & 0xffffff, 6, 16, QLatin1Char('0'))
+                            .toUpper();
+  QStringList lines;
+  lines << QStringLiteral("StreamPing 진단 정보")
+        << QStringLiteral("생성 시각: %1").arg(QDateTime::currentDateTime().toString(Qt::ISODate))
+        << QStringLiteral("StreamPing: %1").arg(QString::fromUtf8(STREAMPING_VERSION))
+        << QStringLiteral("OBS: %1").arg(QString::fromUtf8(obs_get_version_string()))
+        << QStringLiteral("Windows: %1").arg(QSysInfo::prettyProductName())
+        << QStringLiteral("치지직 채널: %1")
+               .arg(settings.channelId.isEmpty() ? QStringLiteral("없음")
+                                                 : QStringLiteral("설정됨"))
+        << QStringLiteral("Discord 자동 알림: %1").arg(enabledText(settings.discordEnabled))
+        << QStringLiteral("Discord 연결: %1")
+               .arg(isValidDiscordWebhook(settings.discordWebhook) ? QStringLiteral("연결됨")
+                                                                   : QStringLiteral("연결 안 됨"))
+        << QStringLiteral("Discord 연결 방식: %1")
+               .arg(settings.discordManagedWebhook ? QStringLiteral("간편 연결")
+                                                   : QStringLiteral("수동 또는 없음"))
+        << QStringLiteral("Discord 역할: %1")
+               .arg(settings.discordRoleName.isEmpty() ? QStringLiteral("없음")
+                                                       : settings.discordRoleName)
+        << QStringLiteral("Discord 임베드: %1 / 채널 %2 / 카테고리 %3 / 썸네일 %4")
+               .arg(color, visibleText(settings.discordEmbedShowChannel),
+                    visibleText(settings.discordEmbedShowCategory),
+                    visibleText(settings.discordEmbedShowThumbnail))
+        << QStringLiteral("X 작성 화면: %1").arg(enabledText(settings.xEnabled))
+        << QStringLiteral("LIVE 확인: 첫 지연 %1초 / 간격 %2초 / 최대 %3초")
+               .arg(settings.initialDelaySeconds)
+               .arg(settings.pollingIntervalSeconds)
+               .arg(settings.maximumWaitSeconds)
+        << QStringLiteral("자동 업데이트 확인: %1").arg(enabledText(settings.automaticUpdateChecks))
+        << QStringLiteral("최근 상태: %1")
+               .arg(recentStatus.isEmpty() ? QStringLiteral("없음") : recentStatus);
+  const QString diagnostics = lines.join(QLatin1Char('\n'));
+  QGuiApplication::clipboard()->setText(diagnostics);
+  status_->setText(QStringLiteral("민감한 연결 주소를 제외한 진단 정보를 복사했습니다."));
 }
 
 void SettingsDialog::checkUpdates()
@@ -661,11 +869,45 @@ void SettingsDialog::updateDiscordStatus()
   testDiscordButton_->setEnabled(connected);
 }
 
+void SettingsDialog::updateDiscordEmbedColorButton()
+{
+  const QString hex =
+      QStringLiteral("#%1").arg(discordEmbedColor_ & 0xffffff, 6, 16, QLatin1Char('0')).toUpper();
+  const QColor color = QColor::fromRgb(discordEmbedColor_);
+  const QColor textColor = color.lightness() < 128 ? Qt::white : Qt::black;
+  discordEmbedColorButton_->setText(hex);
+  discordEmbedColorButton_->setStyleSheet(
+      QStringLiteral("QPushButton { background-color: %1; color: %2; }")
+          .arg(hex, textColor.name()));
+}
+
+void SettingsDialog::showTextPreview(const QString &title, const QString &text)
+{
+  QDialog dialog(this);
+  dialog.setWindowTitle(title);
+  dialog.resize(520, 420);
+  auto *editor = new QPlainTextEdit(text, &dialog);
+  editor->setReadOnly(true);
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+  buttons->button(QDialogButtonBox::Close)->setText(QStringLiteral("닫기"));
+  auto *layout = new QVBoxLayout(&dialog);
+  layout->addWidget(editor);
+  layout->addWidget(buttons);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  dialog.exec();
+}
+
 void SettingsDialog::setBusy(bool busy, const QString &status)
 {
   testChzzkButton_->setDisabled(busy);
   testDiscordButton_->setDisabled(busy);
   testXButton_->setDisabled(busy);
+  previewDiscordButton_->setDisabled(busy);
+  previewXButton_->setDisabled(busy);
+  resetDiscordTemplateButton_->setDisabled(busy);
+  resetXTemplateButton_->setDisabled(busy);
+  discordEmbedColorButton_->setDisabled(busy);
+  copyDiagnosticsButton_->setDisabled(busy);
   connectDiscordButton_->setDisabled(busy);
   disconnectDiscordButton_->setDisabled(busy);
   selectDiscordRoleButton_->setDisabled(busy);

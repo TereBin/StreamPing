@@ -256,8 +256,11 @@ void StreamNotifier::sendDiscordNotification(const LiveInfo &live)
   const quint64 currentRun = runId_;
   const QString message = replaceDiscordRoleTag(
       renderMessage(settings_.discordMessageTemplate, live), settings_.discordRoleId);
+  const DiscordEmbedOptions embedOptions{
+      settings_.discordEmbedColor, settings_.discordEmbedShowChannel,
+      settings_.discordEmbedShowCategory, settings_.discordEmbedShowThumbnail};
 
-  discord_.send(settings_.discordWebhook, message, live,
+  discord_.send(settings_.discordWebhook, message, live, embedOptions,
                 [this, currentRun, live](const QString &error)
                 {
                   if (currentRun != runId_)

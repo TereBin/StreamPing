@@ -61,6 +61,16 @@ QString unprotectWebhook(const QString &value)
 }
 } // namespace
 
+QString defaultDiscordMessageTemplate()
+{
+  return QString::fromUtf8("🔴 {channel} 방송 시작!\n\n{title}\n카테고리: {category}\n{url}");
+}
+
+QString defaultXMessageTemplate()
+{
+  return QString::fromUtf8("🔴 {channel} 방송 시작!\n\n{title}\n{category}\n{url}");
+}
+
 QString SettingsStore::filePath() const
 {
   char *path = obs_module_config_path(kSettingsFile);
@@ -102,6 +112,13 @@ PluginSettings SettingsStore::load() const
     settings.discordMessageTemplate = discordTemplate;
   else if (!legacyTemplate.isEmpty())
     settings.discordMessageTemplate = legacyTemplate;
+  settings.discordEmbedColor = object.value("discordEmbedColor").toInt(settings.discordEmbedColor);
+  settings.discordEmbedShowChannel =
+      object.value("discordEmbedShowChannel").toBool(settings.discordEmbedShowChannel);
+  settings.discordEmbedShowCategory =
+      object.value("discordEmbedShowCategory").toBool(settings.discordEmbedShowCategory);
+  settings.discordEmbedShowThumbnail =
+      object.value("discordEmbedShowThumbnail").toBool(settings.discordEmbedShowThumbnail);
   settings.xEnabled = object.value("xEnabled").toBool(settings.xEnabled);
   settings.xMessageTemplate = object.value("xMessageTemplate").toString(settings.xMessageTemplate);
   settings.initialDelaySeconds =
@@ -140,6 +157,10 @@ bool SettingsStore::save(const PluginSettings &settings, QString *error) const
   object.insert("discordRoleName", settings.discordRoleName);
   object.insert("discordManagedWebhook", settings.discordManagedWebhook);
   object.insert("discordMessageTemplate", settings.discordMessageTemplate);
+  object.insert("discordEmbedColor", settings.discordEmbedColor);
+  object.insert("discordEmbedShowChannel", settings.discordEmbedShowChannel);
+  object.insert("discordEmbedShowCategory", settings.discordEmbedShowCategory);
+  object.insert("discordEmbedShowThumbnail", settings.discordEmbedShowThumbnail);
   object.insert("xEnabled", settings.xEnabled);
   object.insert("xMessageTemplate", settings.xMessageTemplate);
   object.insert("initialDelaySeconds", settings.initialDelaySeconds);
