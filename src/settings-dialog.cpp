@@ -11,6 +11,7 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
+#include <QFrame>
 #include <QFormLayout>
 #include <QGuiApplication>
 #include <QGroupBox>
@@ -23,6 +24,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QStringList>
 #include <QSysInfo>
@@ -45,7 +47,8 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
       discord_(this), discordConnection_(this), updateChecker_(this)
 {
   setWindowTitle(QStringLiteral("StreamPing 설정"));
-  setMinimumWidth(560);
+  resize(760, 720);
+  setMinimumSize(560, 480);
 
   discordEnabled_ = new QCheckBox(QStringLiteral("방송 시작 시 Discord 자동 알림"), this);
   discordEnabled_->setChecked(originalSettings_.discordEnabled);
@@ -204,15 +207,27 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
   saveButton_->setText(QStringLiteral("저장"));
   buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("취소"));
 
+  auto *scrollContent = new QWidget(this);
+  auto *contentLayout = new QVBoxLayout(scrollContent);
+  contentLayout->setContentsMargins(0, 0, 0, 0);
+  contentLayout->addWidget(chzzkGroup);
+  contentLayout->addWidget(discordGroup);
+  contentLayout->addWidget(xGroup);
+  contentLayout->addWidget(updateGroup);
+  contentLayout->addWidget(supportGroup);
+  contentLayout->addWidget(timingToggle);
+  contentLayout->addWidget(timingPanel);
+  contentLayout->addWidget(status_);
+  contentLayout->addStretch();
+
+  auto *scrollArea = new QScrollArea(this);
+  scrollArea->setWidgetResizable(true);
+  scrollArea->setFrameShape(QFrame::NoFrame);
+  scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  scrollArea->setWidget(scrollContent);
+
   auto *layout = new QVBoxLayout(this);
-  layout->addWidget(chzzkGroup);
-  layout->addWidget(discordGroup);
-  layout->addWidget(xGroup);
-  layout->addWidget(updateGroup);
-  layout->addWidget(supportGroup);
-  layout->addWidget(timingToggle);
-  layout->addWidget(timingPanel);
-  layout->addWidget(status_);
+  layout->addWidget(scrollArea, 1);
   layout->addWidget(buttons);
 
   connectionPollTimer_ = new QTimer(this);
@@ -247,7 +262,6 @@ SettingsDialog::SettingsDialog(const SettingsStore &store, QWidget *parent)
           {
             timingToggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
             timingPanel->setVisible(expanded);
-            adjustSize();
           });
   connect(buttons, &QDialogButtonBox::accepted, this, &SettingsDialog::saveAndAccept);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
