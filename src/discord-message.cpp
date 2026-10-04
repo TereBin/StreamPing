@@ -36,6 +36,15 @@ QString replaceDiscordRoleTag(const QString &message, const QString &roleId)
   return rendered.replace(QStringLiteral("{role}"), mention);
 }
 
+QString replaceDiscordRoleTagForPreview(const QString &message, const QString &roleName)
+{
+  QString rendered = message;
+  const QString trimmedRoleName = roleName.trimmed();
+  const QString mention =
+      trimmedRoleName.isEmpty() ? QString() : QStringLiteral("@%1").arg(trimmedRoleName);
+  return rendered.replace(QStringLiteral("{role}"), mention);
+}
+
 QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &live,
                                       const DiscordEmbedOptions &options)
 {

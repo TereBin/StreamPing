@@ -86,6 +86,11 @@ void buildsDiscordMessagePayloads()
         QStringLiteral(" 방송 시작"));
   check(replaceDiscordRoleTag(QStringLiteral("방송 시작"), QStringLiteral("123456789012345678")) ==
         QStringLiteral("방송 시작"));
+  check(replaceDiscordRoleTagForPreview(QStringLiteral("{role} 방송 시작"),
+                                        QStringLiteral("방송 알림")) ==
+        QStringLiteral("@방송 알림 방송 시작"));
+  check(replaceDiscordRoleTagForPreview(QStringLiteral("{role} 방송 시작"), QString()) ==
+        QStringLiteral(" 방송 시작"));
   check(QJsonDocument::fromJson(buildDiscordMessagePayload(QString(2001, QLatin1Char('x')), live))
             .object()
             .value(QStringLiteral("content"))

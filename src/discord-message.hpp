@@ -16,3 +16,4 @@ struct DiscordEmbedOptions
 QByteArray buildDiscordMessagePayload(const QString &message, const LiveInfo &live,
                                       const DiscordEmbedOptions &options = {});
 QString replaceDiscordRoleTag(const QString &message, const QString &roleId);
+QString replaceDiscordRoleTagForPreview(const QString &message, const QString &roleName);

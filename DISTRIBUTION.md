@@ -1,4 +1,4 @@
-# StreamPing 0.6.1
+# StreamPing 0.6.2
 
 OBS Studio에서 치지직 LIVE 상태를 확인해 Discord 알림을 보내고 X 작성 화면을
 준비하는 Windows x64 플러그인입니다.

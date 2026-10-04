@@ -408,7 +408,8 @@ void SettingsDialog::previewDiscordMessage()
         const QJsonObject payload =
             QJsonDocument::fromJson(
                 buildDiscordMessagePayload(
-                    replaceDiscordRoleTag(message, originalSettings_.discordRoleId), live, options))
+                    replaceDiscordRoleTagForPreview(message, originalSettings_.discordRoleName),
+                    live, options))
                 .object();
         const QJsonObject embed =
             payload.value(QStringLiteral("embeds")).toArray().first().toObject();
